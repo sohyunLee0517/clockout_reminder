@@ -89,39 +89,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _maybeShowArrivalDialog() async {
     final pending = _controller.pendingArrival.value;
     if (pending == null || _dialogOpen || !mounted) return;
-    if (await _controller.isCheckedInToday()) {
-      await _controller.dismissArrival();
+    // 이미 출근했거나 오늘 "출근 안하기" 를 누른 상태면 대기 해제.
+    if (await _controller.isCheckedInToday() ||
+        await AttendanceController.isArrivalDismissedToday()) {
+      _controller.pendingArrival.value = null;
       return;
     }
     if (!mounted) return;
     _dialogOpen = true;
-    final yes = await showDialog<bool>(
+    final result = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('회사에 도착했어요'),
-        content: const Text('출근하시겠습니까?\n"예"를 누르면 퇴근 알림이 설정됩니다.'),
+        content: const Text('출근하시겠습니까?\n"출근 안하기"를 누르면 오늘은 더 묻지 않아요.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('아니오'),
+            onPressed: () => Navigator.pop(context, 'skip'),
+            child: const Text('출근 안하기'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('예, 출근'),
+            onPressed: () => Navigator.pop(context, 'checkin'),
+            child: const Text('출근하기'),
           ),
         ],
       ),
     );
     _dialogOpen = false;
-    if (yes == true) {
+    if (result == 'checkin') {
       await _controller.confirmCheckIn(
         trigger: AttendanceTrigger.geofenceEnter,
         latitude: pending.latitude,
         longitude: pending.longitude,
       );
       _showClockOutSnack();
-    } else {
-      await _controller.dismissArrival();
+    } else if (result == 'skip') {
+      await _controller.skipArrivalToday();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('오늘은 출근 알림을 끌게요.')),
+        );
+      }
     }
   }
 
@@ -193,6 +200,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('퇴근이 기록되었습니다. 수고하셨어요!')),
+      );
+    }
+  }
+
+  Future<void> _cancelCheckIn() async {
+    await _controller.cancelCheckIn();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('출근을 취소했어요. (오늘 기록 초기화)')),
+      );
+    }
+  }
+
+  Future<void> _cancelCheckOut() async {
+    await _controller.cancelCheckOut();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('퇴근을 취소했어요. 다시 근무 중이에요.')),
       );
     }
   }
@@ -361,29 +386,61 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _actionButtons(ThemeData theme) {
     final checkedIn = _checkIn != null;
     final checkedOut = _checkOut != null;
-    return Row(
+
+    // 주 동작 버튼 (상태에 따라 출근하기 / 퇴근하기 / 완료)
+    final Widget primary;
+    if (!checkedIn) {
+      primary = FilledButton.icon(
+        onPressed: _manualCheckIn,
+        icon: const Icon(Icons.login),
+        label: const Text('출근하기'),
+        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+      );
+    } else if (!checkedOut) {
+      primary = FilledButton.icon(
+        onPressed: _manualCheckOut,
+        icon: const Icon(Icons.logout),
+        label: const Text('퇴근하기'),
+        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+      );
+    } else {
+      primary = FilledButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.check_circle),
+        label: const Text('오늘 근무 완료'),
+        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+      );
+    }
+
+    // 잘못 누른 경우를 위한 취소 버튼들
+    final cancels = <Widget>[];
+    if (checkedIn) {
+      cancels.add(Expanded(
+        child: OutlinedButton.icon(
+          onPressed: _cancelCheckIn,
+          icon: const Icon(Icons.undo, size: 18),
+          label: const Text('출근 취소'),
+        ),
+      ));
+    }
+    if (checkedOut) {
+      if (cancels.isNotEmpty) cancels.add(const SizedBox(width: 12));
+      cancels.add(Expanded(
+        child: OutlinedButton.icon(
+          onPressed: _cancelCheckOut,
+          icon: const Icon(Icons.undo, size: 18),
+          label: const Text('퇴근 취소'),
+        ),
+      ));
+    }
+
+    return Column(
       children: [
-        Expanded(
-          child: FilledButton.tonalIcon(
-            onPressed: checkedIn ? null : _manualCheckIn,
-            icon: Icon(checkedIn ? Icons.check_circle : Icons.login),
-            label: Text(checkedIn ? '출근 완료' : '출근하기'),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(52),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: FilledButton.icon(
-            onPressed: (!checkedIn || checkedOut) ? null : _manualCheckOut,
-            icon: Icon(checkedOut ? Icons.check_circle : Icons.logout),
-            label: Text(checkedOut ? '퇴근 완료' : '퇴근하기'),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(52),
-            ),
-          ),
-        ),
+        primary,
+        if (cancels.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Row(children: cancels),
+        ],
       ],
     );
   }

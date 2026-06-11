@@ -31,6 +31,11 @@ void notificationTapBackground(NotificationResponse response) async {
       // 연장근무 → 리마인더 스누즈(일정 시간 후 재개)
       await NotificationService.instance.snoozeReminders();
       break;
+    case NotificationService.actionSkipCheckIn:
+      // 출근 안하기 → 오늘 하루 도착 알림 종료
+      await AttendanceController.markArrivalDismissedToday();
+      await NotificationService.instance.cancelArrivalReminders();
+      break;
   }
   await WidgetService.sync();
 }
@@ -51,14 +56,16 @@ class NotificationService {
   static const _channelDesc = '퇴근/출근 체크 리마인더 알림';
 
   static const instantNotificationId = 1001;
-  static const arrivalNotificationId = 1003;
 
   // 퇴근 리마인더 시리즈 (5분 간격 반복) ID 범위: base ~ base+count+1
   static const _reminderBaseId = 2000;
+  // 출근(도착) 리마인더 시리즈 ID 범위: base ~ base+count+1
+  static const _arrivalBaseId = 2100;
   static const _reminderCount = 24; // 5분 × 24 = 약 2시간 동안 반복
   static const _reminderIntervalMin = 5;
 
   static const actionConfirmCheckIn = 'confirm_checkin';
+  static const actionSkipCheckIn = 'skip_checkin';
   static const actionConfirmCheckOut = 'confirm_checkout';
   static const actionOvertime = 'overtime';
   static const _arrivalCategory = 'arrival_category';
@@ -87,6 +94,7 @@ class NotificationService {
           _arrivalCategory,
           actions: [
             DarwinNotificationAction.plain(actionConfirmCheckIn, '출근하기'),
+            DarwinNotificationAction.plain(actionSkipCheckIn, '출근 안하기'),
           ],
         ),
         DarwinNotificationCategory(
@@ -154,8 +162,11 @@ class NotificationService {
           channelDescription: _channelDesc,
           importance: Importance.high,
           priority: Priority.high,
+          category: AndroidNotificationCategory.reminder,
           actions: [
             AndroidNotificationAction(actionConfirmCheckIn, '출근하기',
+                showsUserInterface: true),
+            AndroidNotificationAction(actionSkipCheckIn, '출근 안하기',
                 showsUserInterface: true),
           ],
         ),
@@ -195,20 +206,49 @@ class NotificationService {
     );
   }
 
-  /// 회사 도착 시 "출근하시겠습니까?" 알림(액션 버튼 포함).
-  Future<void> showArrivalPrompt() async {
+  /// 회사 도착 시 "출근하시겠습니까?" 리마인더 시작.
+  /// 즉시 1회 + 5분 간격 반복(응답할 때까지). [출근하기]/[출근 안하기] 액션 포함.
+  Future<void> startArrivalReminders() async {
     await init();
+    await cancelArrivalReminders();
+
+    const title = '회사에 도착했어요';
+    const body = '출근하시겠습니까? "출근하기"를 누르면 퇴근 알림이 설정됩니다.';
+    final now = tz.TZDateTime.now(tz.local);
+
+    // 즉시 1회
     await _plugin.show(
-      id: arrivalNotificationId,
-      title: '회사에 도착했어요',
-      body: '출근하시겠습니까? "출근하기"를 누르면 퇴근 알림이 설정됩니다.',
+      id: _arrivalBaseId,
+      title: title,
+      body: body,
       notificationDetails: _arrivalDetails,
       payload: 'arrival',
     );
+
+    // 5분 간격 반복 예약
+    for (int i = 0; i < _reminderCount; i++) {
+      final when = now.add(Duration(minutes: (i + 1) * _reminderIntervalMin));
+      try {
+        await _plugin.zonedSchedule(
+          id: _arrivalBaseId + 1 + i,
+          title: title,
+          body: body,
+          scheduledDate: when,
+          notificationDetails: _arrivalDetails,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          payload: 'arrival',
+        );
+      } catch (e) {
+        debugPrint('출근 리마인더 예약 실패: $e');
+      }
+    }
   }
 
-  Future<void> cancelArrivalPrompt() async {
-    await _plugin.cancel(id: arrivalNotificationId);
+  /// 출근(도착) 리마인더 시리즈를 모두 취소한다.
+  Future<void> cancelArrivalReminders() async {
+    for (int i = 0; i <= _reminderCount + 1; i++) {
+      await _plugin.cancel(id: _arrivalBaseId + i);
+    }
   }
 
   /// 퇴근 리마인더 시리즈를 시작한다.

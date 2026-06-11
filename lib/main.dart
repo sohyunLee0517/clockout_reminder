@@ -26,6 +26,9 @@ Future<void> main() async {
           trigger: AttendanceTrigger.geofenceEnter,
         );
         break;
+      case NotificationService.actionSkipCheckIn:
+        await controller.skipArrivalToday();
+        break;
       case NotificationService.actionConfirmCheckOut:
         await controller.checkOut(trigger: AttendanceTrigger.manual);
         break;

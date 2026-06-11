@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/app_settings.dart';
 import '../models/attendance_record.dart';
@@ -65,10 +66,12 @@ class AttendanceController {
   }
 
   /// 회사 반경 진입 시 호출. 확인 옵션에 따라 다이얼로그/알림 또는 자동 출근.
+  /// 출근을 누르지 않으면 5분 간격으로 반복 알림(오늘 "출근 안하기" 시 종료).
   Future<void> onArrival({double? latitude, double? longitude}) async {
     if (await isCheckedInToday()) return;
+    if (await isArrivalDismissedToday()) return; // 오늘 "출근 안하기" 누름
     if (settings.confirmOnArrival) {
-      await NotificationService.instance.showArrivalPrompt();
+      await NotificationService.instance.startArrivalReminders();
       pendingArrival.value =
           PendingArrival(latitude: latitude, longitude: longitude);
     } else {
@@ -78,6 +81,24 @@ class AttendanceController {
         longitude: longitude,
       );
     }
+  }
+
+  // ── "오늘 출근 안하기" 플래그 (날짜 기준, 다음 날 자동 해제) ──
+  static const _kArrivalDismissed = 'arrival_dismissed_date';
+
+  static String _todayKey() {
+    final n = DateTime.now();
+    return '${n.year}-${n.month}-${n.day}';
+  }
+
+  static Future<bool> isArrivalDismissedToday() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kArrivalDismissed) == _todayKey();
+  }
+
+  static Future<void> markArrivalDismissedToday() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kArrivalDismissed, _todayKey());
   }
 
   Future<bool> isCheckedInToday() async {
@@ -105,14 +126,60 @@ class AttendanceController {
     );
     scheduledClockOut = out;
     pendingArrival.value = null;
-    await NotificationService.instance.cancelArrivalPrompt();
+    await NotificationService.instance.cancelArrivalReminders();
     changed.value++;
   }
 
-  /// 도착 확인 거절 (오늘은 출근 처리 안 함).
+  /// 도착 확인 대기 해제(이미 출근한 경우 등). 오늘 알림은 종료하지 않음.
   Future<void> dismissArrival() async {
     pendingArrival.value = null;
-    await NotificationService.instance.cancelArrivalPrompt();
+    await NotificationService.instance.cancelArrivalReminders();
+  }
+
+  /// "출근 안하기" → 오늘 하루 도착 알림 종료.
+  Future<void> skipArrivalToday() async {
+    pendingArrival.value = null;
+    await markArrivalDismissedToday();
+    await NotificationService.instance.cancelArrivalReminders();
+  }
+
+  /// 출근 취소: 오늘 출근(과 퇴근) 기록 삭제 + 모든 리마인더 취소 → "출근 전".
+  Future<void> cancelCheckIn() async {
+    final db = DatabaseService.instance;
+    final today = await db.getByDate(DateTime.now());
+    for (final r in today) {
+      if ((r.type == AttendanceType.checkIn ||
+              r.type == AttendanceType.checkOut) &&
+          r.id != null) {
+        await db.delete(r.id!);
+      }
+    }
+    scheduledClockOut = null;
+    pendingArrival.value = null;
+    pendingDeparture.value = null;
+    await NotificationService.instance.cancelClockOutReminders();
+    await NotificationService.instance.cancelArrivalReminders();
+    changed.value++;
+  }
+
+  /// 퇴근 취소: 오늘 퇴근 기록만 삭제 → 다시 "근무 중", 퇴근 리마인더 재설정.
+  Future<void> cancelCheckOut() async {
+    final db = DatabaseService.instance;
+    final today = await db.getByDate(DateTime.now());
+    AttendanceRecord? checkIn;
+    for (final r in today) {
+      if (r.type == AttendanceType.checkOut && r.id != null) {
+        await db.delete(r.id!);
+      }
+      if (r.type == AttendanceType.checkIn) checkIn = r;
+    }
+    pendingDeparture.value = null;
+    if (checkIn != null && settings.clockOutAlarmEnabled) {
+      final out = TimeRules.computeClockOut(checkIn.timestamp, settings);
+      scheduledClockOut = out;
+      await NotificationService.instance.scheduleClockOutReminders(firstAt: out);
+    }
+    changed.value++;
   }
 
   /// 회사 반경 이탈 시 호출. 자동 퇴근하지 않고 "퇴근하셨나요?" 를 물어본다.
