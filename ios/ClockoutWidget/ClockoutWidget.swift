@@ -108,9 +108,8 @@ struct ClockoutWidgetEntryView: View {
   }
 }
 
-// MARK: - Widget
+// MARK: - Widget  (@main 은 ClockoutWidgetBundle.swift 에 있음)
 
-@main
 struct ClockoutWidget: Widget {
   let kind: String = "ClockoutWidget"
 

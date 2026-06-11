@@ -1,5 +1,5 @@
-# Uncomment this line to define a global platform for your project
-# platform :ios, '13.0'
+# home_widget 등 플러그인이 iOS 14+ 를 요구해서 14.0 으로 지정
+platform :ios, '14.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -33,6 +33,12 @@ target 'Runner' do
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
     inherit! :search_paths
+  end
+
+  # 홈 위젯 익스텐션 — home_widget pod 연결
+  target 'ClockoutWidgetExtension' do
+    inherit! :search_paths
+    pod 'home_widget', :path => '.symlinks/plugins/home_widget/ios'
   end
 end
 
