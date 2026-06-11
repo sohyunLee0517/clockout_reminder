@@ -7,24 +7,39 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../models/attendance_record.dart';
 import 'attendance_controller.dart';
+import 'widget_service.dart';
 
 /// 백그라운드(앱이 꺼진 상태)에서 알림 액션 탭을 처리하는 최상위 핸들러.
 @pragma('vm:entry-point')
 void notificationTapBackground(NotificationResponse response) async {
-  if (response.actionId == NotificationService.actionConfirmCheckIn) {
-    WidgetsFlutterBinding.ensureInitialized();
-    DartPluginRegistrant.ensureInitialized();
-    await AttendanceController.performCheckIn(
-      trigger: AttendanceTrigger.geofenceEnter,
-    );
+  WidgetsFlutterBinding.ensureInitialized();
+  DartPluginRegistrant.ensureInitialized();
+  await NotificationService.instance.init();
+
+  switch (response.actionId) {
+    case NotificationService.actionConfirmCheckIn:
+      await AttendanceController.performCheckIn(
+        trigger: AttendanceTrigger.geofenceEnter,
+      );
+      break;
+    case NotificationService.actionConfirmCheckOut:
+      await AttendanceController.performCheckOut(
+        trigger: AttendanceTrigger.manual,
+      );
+      break;
+    case NotificationService.actionOvertime:
+      // 연장근무 → 리마인더 스누즈(일정 시간 후 재개)
+      await NotificationService.instance.snoozeReminders();
+      break;
   }
+  await WidgetService.sync();
 }
 
 /// 로컬 푸시 알림을 담당한다.
 ///
-/// - 도착 시 "출근하시겠습니까?" 알림 (액션 버튼)
-/// - 계산된 퇴근시각 1회 예약 알림
-/// - 즉시 알림
+/// - 도착 시 "출근하시겠습니까?" 알림
+/// - 이탈/퇴근시각 도달 시 "퇴근하셨나요?" 알림 (응답할 때까지 5분 간격 반복)
+/// - [퇴근하기] / [연장근무] 액션
 class NotificationService {
   NotificationService._();
   static final NotificationService instance = NotificationService._();
@@ -36,11 +51,18 @@ class NotificationService {
   static const _channelDesc = '퇴근/출근 체크 리마인더 알림';
 
   static const instantNotificationId = 1001;
-  static const clockOutNotificationId = 1002;
   static const arrivalNotificationId = 1003;
 
+  // 퇴근 리마인더 시리즈 (5분 간격 반복) ID 범위: base ~ base+count+1
+  static const _reminderBaseId = 2000;
+  static const _reminderCount = 24; // 5분 × 24 = 약 2시간 동안 반복
+  static const _reminderIntervalMin = 5;
+
   static const actionConfirmCheckIn = 'confirm_checkin';
+  static const actionConfirmCheckOut = 'confirm_checkout';
+  static const actionOvertime = 'overtime';
   static const _arrivalCategory = 'arrival_category';
+  static const _reminderCategory = 'clockout_reminder_category';
 
   /// 포그라운드에서 알림(액션) 탭을 받았을 때 호출되는 콜백. main 에서 연결한다.
   void Function(NotificationResponse response)? onResponse;
@@ -65,6 +87,13 @@ class NotificationService {
           _arrivalCategory,
           actions: [
             DarwinNotificationAction.plain(actionConfirmCheckIn, '출근하기'),
+          ],
+        ),
+        DarwinNotificationCategory(
+          _reminderCategory,
+          actions: [
+            DarwinNotificationAction.plain(actionConfirmCheckOut, '퇴근하기'),
+            DarwinNotificationAction.plain(actionOvertime, '연장근무'),
           ],
         ),
       ],
@@ -133,6 +162,25 @@ class NotificationService {
         iOS: DarwinNotificationDetails(categoryIdentifier: _arrivalCategory),
       );
 
+  /// 퇴근 리마인더용 상세 ([퇴근하기] / [연장근무] 액션 포함).
+  NotificationDetails get _reminderDetails => const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          _channelName,
+          channelDescription: _channelDesc,
+          importance: Importance.high,
+          priority: Priority.high,
+          category: AndroidNotificationCategory.reminder,
+          actions: [
+            AndroidNotificationAction(actionConfirmCheckOut, '퇴근하기',
+                showsUserInterface: true),
+            AndroidNotificationAction(actionOvertime, '연장근무',
+                showsUserInterface: true),
+          ],
+        ),
+        iOS: DarwinNotificationDetails(categoryIdentifier: _reminderCategory),
+      );
+
   /// 즉시 알림.
   Future<void> showInstant({
     required String title,
@@ -163,34 +211,66 @@ class NotificationService {
     await _plugin.cancel(id: arrivalNotificationId);
   }
 
-  /// 계산된 퇴근시각([when])에 1회 푸시 예약.
-  Future<void> scheduleClockOutAt(
-    DateTime when, {
+  /// 퇴근 리마인더 시리즈를 시작한다.
+  ///
+  /// [firstAt] 부터 5분 간격으로 반복 알림을 예약한다.
+  /// [showFirstNow] 가 true 면 즉시 한 번 먼저 띄운다(반경 이탈 시).
+  /// 응답(퇴근/연장근무)하면 [cancelClockOutReminders] 로 전부 취소된다.
+  Future<void> scheduleClockOutReminders({
+    required DateTime firstAt,
+    bool showFirstNow = false,
     String title = '퇴근 시간입니다 🕔',
-    String body = '오늘 근무 끝! 퇴근 체크 잊지 마세요.',
+    String body = '퇴근하셨나요? 더 근무하시면 "연장근무"를 눌러주세요.',
   }) async {
     await init();
-    await cancelClockOut();
+    await cancelClockOutReminders();
 
-    final scheduled = tz.TZDateTime.from(when, tz.local);
-    // 이미 지난 시각이면 예약하지 않는다.
-    if (scheduled.isBefore(tz.TZDateTime.now(tz.local))) return;
+    final now = tz.TZDateTime.now(tz.local);
 
-    try {
-      await _plugin.zonedSchedule(
-        id: clockOutNotificationId,
+    if (showFirstNow) {
+      await _plugin.show(
+        id: _reminderBaseId,
         title: title,
         body: body,
-        scheduledDate: scheduled,
-        notificationDetails: _basicDetails,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        notificationDetails: _reminderDetails,
+        payload: 'clockout',
       );
-    } catch (e) {
-      debugPrint('퇴근 알림 예약 실패: $e');
+    }
+
+    for (int i = 0; i < _reminderCount; i++) {
+      final when = tz.TZDateTime.from(firstAt, tz.local)
+          .add(Duration(minutes: i * _reminderIntervalMin));
+      if (!when.isAfter(now)) continue; // 이미 지난 시각은 건너뜀
+      try {
+        await _plugin.zonedSchedule(
+          id: _reminderBaseId + 1 + i,
+          title: title,
+          body: body,
+          scheduledDate: when,
+          notificationDetails: _reminderDetails,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          payload: 'clockout',
+        );
+      } catch (e) {
+        debugPrint('퇴근 리마인더 예약 실패: $e');
+      }
     }
   }
 
-  Future<void> cancelClockOut() async {
-    await _plugin.cancel(id: clockOutNotificationId);
+  /// 퇴근 리마인더 시리즈를 모두 취소한다.
+  Future<void> cancelClockOutReminders() async {
+    for (int i = 0; i <= _reminderCount + 1; i++) {
+      await _plugin.cancel(id: _reminderBaseId + i);
+    }
+  }
+
+  /// 연장근무/아직 근무중 → 리마인더를 [snoozeMinutes] 후 다시 5분 간격으로 재개.
+  Future<void> snoozeReminders({int snoozeMinutes = 60}) async {
+    final resume = DateTime.now().add(Duration(minutes: snoozeMinutes));
+    await scheduleClockOutReminders(
+      firstAt: resume,
+      title: '아직 근무 중이신가요?',
+      body: '퇴근하셨다면 "퇴근하기", 계속 근무하시면 "연장근무"를 눌러주세요.',
+    );
   }
 }

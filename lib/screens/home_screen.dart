@@ -34,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _controller.changed.addListener(_refresh);
     _controller.pendingArrival.addListener(_maybeShowArrivalDialog);
+    _controller.pendingDeparture.addListener(_maybeShowDepartureDialog);
     _bootstrap();
   }
 
@@ -42,6 +43,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _controller.changed.removeListener(_refresh);
     _controller.pendingArrival.removeListener(_maybeShowArrivalDialog);
+    _controller.pendingDeparture.removeListener(_maybeShowDepartureDialog);
     super.dispose();
   }
 
@@ -50,6 +52,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       _refresh();
       _maybeShowArrivalDialog();
+      _maybeShowDepartureDialog();
     }
   }
 
@@ -59,6 +62,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
     await _refresh();
     _maybeShowArrivalDialog();
+    _maybeShowDepartureDialog();
   }
 
   Future<void> _refresh() async {
@@ -121,12 +125,61 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _maybeShowDepartureDialog() async {
+    final pending = _controller.pendingDeparture.value;
+    if (pending == null || _dialogOpen || !mounted) return;
+    // 이미 퇴근했으면 대기 해제.
+    if (await DatabaseService.instance.hasCheckedOutToday()) {
+      _controller.pendingDeparture.value = null;
+      return;
+    }
+    if (!mounted) return;
+    _dialogOpen = true;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('회사를 벗어났어요'),
+        content: const Text('퇴근하셨나요?\n아직 근무 중이면 "연장근무"를 누르세요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'overtime'),
+            child: const Text('연장근무'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, 'checkout'),
+            child: const Text('퇴근하기'),
+          ),
+        ],
+      ),
+    );
+    _dialogOpen = false;
+    if (result == 'checkout') {
+      await _controller.checkOut(
+        trigger: AttendanceTrigger.geofenceExit,
+        latitude: pending.latitude,
+        longitude: pending.longitude,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('퇴근이 기록되었습니다. 수고하셨어요!')),
+        );
+      }
+    } else if (result == 'overtime') {
+      await _controller.snooze();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('연장근무로 처리했어요. 잠시 후 다시 알려드릴게요.')),
+        );
+      }
+    }
+  }
+
   void _showClockOutSnack() {
     final out = _controller.scheduledClockOut ?? _predictedClockOut;
     if (out == null || !mounted) return;
     final t = DateFormat('a h:mm', 'ko').format(out);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('출근 완료! 퇴근 알림이 $t 에 설정되었습니다.')),
+      SnackBar(content: Text('출근 완료! 퇴근 알림이 $t 부터 설정되었습니다.')),
     );
   }
 

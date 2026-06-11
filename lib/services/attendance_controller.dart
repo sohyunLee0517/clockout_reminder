@@ -14,6 +14,13 @@ class PendingArrival {
   const PendingArrival({this.latitude, this.longitude});
 }
 
+/// 반경 이탈 후 퇴근 확인 대기 상태 (UI 다이얼로그 표시용).
+class PendingDeparture {
+  final double? latitude;
+  final double? longitude;
+  const PendingDeparture({this.latitude, this.longitude});
+}
+
 /// 출근/퇴근 흐름과 퇴근시각 계산·예약을 한곳에서 관리한다.
 class AttendanceController {
   AttendanceController._();
@@ -27,6 +34,10 @@ class AttendanceController {
   /// 도착 확인 대기 — null 이 아니면 UI 에서 "출근하시겠습니까?" 다이얼로그를 띄운다.
   final ValueNotifier<PendingArrival?> pendingArrival =
       ValueNotifier<PendingArrival?>(null);
+
+  /// 이탈 후 퇴근 확인 대기 — null 이 아니면 "퇴근하셨나요?" 다이얼로그를 띄운다.
+  final ValueNotifier<PendingDeparture?> pendingDeparture =
+      ValueNotifier<PendingDeparture?>(null);
 
   /// 오늘 계산된 퇴근 예정시각 (없으면 null).
   DateTime? scheduledClockOut;
@@ -45,9 +56,9 @@ class AttendanceController {
     if (checkIn != null && !checkedOut && s.clockOutAlarmEnabled) {
       final out = TimeRules.computeClockOut(checkIn.timestamp, s);
       scheduledClockOut = out;
-      await NotificationService.instance.scheduleClockOutAt(out);
+      await NotificationService.instance.scheduleClockOutReminders(firstAt: out);
     } else if (!s.clockOutAlarmEnabled) {
-      await NotificationService.instance.cancelClockOut();
+      await NotificationService.instance.cancelClockOutReminders();
       scheduledClockOut = null;
     }
     changed.value++;
@@ -104,7 +115,30 @@ class AttendanceController {
     await NotificationService.instance.cancelArrivalPrompt();
   }
 
-  /// 퇴근 처리: 기록 저장 + 예약된 퇴근 알림 취소.
+  /// 회사 반경 이탈 시 호출. 자동 퇴근하지 않고 "퇴근하셨나요?" 를 물어본다.
+  /// 응답이 없으면 5분 간격으로 계속 알림(반경 이탈 즉시 1회 + 시리즈).
+  Future<void> onDeparture({double? latitude, double? longitude}) async {
+    // 출근하지 않았거나 이미 퇴근했으면 물어볼 필요 없음.
+    if (!await isCheckedInToday()) return;
+    if (await DatabaseService.instance.hasCheckedOutToday()) return;
+
+    await NotificationService.instance.scheduleClockOutReminders(
+      firstAt: DateTime.now().add(const Duration(minutes: 5)),
+      showFirstNow: true,
+      title: '회사를 벗어났어요',
+      body: '퇴근하셨나요? "퇴근하기"를 누르면 기록됩니다.',
+    );
+    pendingDeparture.value =
+        PendingDeparture(latitude: latitude, longitude: longitude);
+  }
+
+  /// "아직 근무중" / "연장근무" → 리마인더 스누즈(일정 시간 후 재개).
+  Future<void> snooze() async {
+    pendingDeparture.value = null;
+    await NotificationService.instance.snoozeReminders();
+  }
+
+  /// 퇴근 처리: 기록 저장 + 모든 퇴근 리마인더 취소.
   Future<void> checkOut({
     required AttendanceTrigger trigger,
     double? latitude,
@@ -116,6 +150,7 @@ class AttendanceController {
       longitude: longitude,
     );
     scheduledClockOut = null;
+    pendingDeparture.value = null;
     changed.value++;
   }
 
@@ -137,7 +172,7 @@ class AttendanceController {
       latitude: latitude,
       longitude: longitude,
     ));
-    await NotificationService.instance.cancelClockOut();
+    await NotificationService.instance.cancelClockOutReminders();
   }
 
   /// 포그라운드/백그라운드 공용 순수 로직.
@@ -177,7 +212,8 @@ class AttendanceController {
 
     if (!settings.clockOutAlarmEnabled) return null;
     final out = TimeRules.computeClockOut(checkInTime, settings);
-    await NotificationService.instance.scheduleClockOutAt(out);
+    // 퇴근 예정시각부터 5분 간격으로 "퇴근하셨나요?" 반복 알림.
+    await NotificationService.instance.scheduleClockOutReminders(firstAt: out);
     return out;
   }
 }

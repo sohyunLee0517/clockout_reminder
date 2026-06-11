@@ -19,11 +19,21 @@ Future<void> main() async {
   // 알림 시스템 초기화 + 포그라운드 알림 응답 핸들러 연결.
   await NotificationService.instance.init();
   NotificationService.instance.onResponse = (response) async {
-    if (response.actionId == NotificationService.actionConfirmCheckIn) {
-      await AttendanceController.instance.confirmCheckIn(
-        trigger: AttendanceTrigger.geofenceEnter,
-      );
+    final controller = AttendanceController.instance;
+    switch (response.actionId) {
+      case NotificationService.actionConfirmCheckIn:
+        await controller.confirmCheckIn(
+          trigger: AttendanceTrigger.geofenceEnter,
+        );
+        break;
+      case NotificationService.actionConfirmCheckOut:
+        await controller.checkOut(trigger: AttendanceTrigger.manual);
+        break;
+      case NotificationService.actionOvertime:
+        await controller.snooze();
+        break;
     }
+    await WidgetService.sync();
   };
 
   // 홈 위젯 초기화(App Group + 버튼 콜백 등록).
