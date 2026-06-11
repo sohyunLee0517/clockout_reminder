@@ -110,8 +110,26 @@ class AttendanceController {
     double? latitude,
     double? longitude,
   }) async {
+    await performCheckOut(
+      trigger: trigger,
+      latitude: latitude,
+      longitude: longitude,
+    );
+    scheduledClockOut = null;
+    changed.value++;
+  }
+
+  /// 포그라운드/백그라운드(위젯 버튼) 공용 순수 퇴근 로직.
+  static Future<void> performCheckOut({
+    required AttendanceTrigger trigger,
+    double? latitude,
+    double? longitude,
+  }) async {
     final db = DatabaseService.instance;
-    if (await db.hasCheckedOutToday()) return;
+    final today = await db.getByDate(DateTime.now());
+    final hasCheckIn = today.any((r) => r.type == AttendanceType.checkIn);
+    final hasCheckOut = today.any((r) => r.type == AttendanceType.checkOut);
+    if (!hasCheckIn || hasCheckOut) return; // 출근 전이거나 이미 퇴근함
     await db.insert(AttendanceRecord(
       type: AttendanceType.checkOut,
       trigger: trigger,
@@ -120,8 +138,6 @@ class AttendanceController {
       longitude: longitude,
     ));
     await NotificationService.instance.cancelClockOut();
-    scheduledClockOut = null;
-    changed.value++;
   }
 
   /// 포그라운드/백그라운드 공용 순수 로직.

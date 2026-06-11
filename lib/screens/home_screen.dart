@@ -7,6 +7,7 @@ import '../models/attendance_record.dart';
 import '../services/attendance_controller.dart';
 import '../services/database_service.dart';
 import '../services/geofence_manager.dart';
+import '../services/widget_service.dart';
 import '../utils/time_rules.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
@@ -62,6 +63,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _refresh() async {
     final today = await DatabaseService.instance.getByDate(DateTime.now());
+    // 홈 화면이 갱신될 때마다 위젯도 최신 상태로 동기화.
+    await WidgetService.sync();
     if (!mounted) return;
     setState(() {
       _today = today;

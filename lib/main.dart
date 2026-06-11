@@ -8,6 +8,7 @@ import 'screens/home_screen.dart';
 import 'services/attendance_controller.dart';
 import 'services/geofence_manager.dart';
 import 'services/notification_service.dart';
+import 'services/widget_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +26,9 @@ Future<void> main() async {
     }
   };
 
+  // 홈 위젯 초기화(App Group + 버튼 콜백 등록).
+  await WidgetService.init();
+
   // 저장된 설정을 컨트롤러에 로드.
   final controller = AttendanceController.instance;
   await controller.loadSettings();
@@ -34,6 +38,9 @@ Future<void> main() async {
   if (settings.configured && settings.geofenceEnabled) {
     await GeofenceManager.instance.start(settings);
   }
+
+  // 위젯에 현재 상태 반영.
+  await WidgetService.sync();
 
   runApp(ClockOutApp(initialSettings: settings));
 }
