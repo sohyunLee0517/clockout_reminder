@@ -28,8 +28,8 @@ void notificationTapBackground(NotificationResponse response) async {
       );
       break;
     case NotificationService.actionOvertime:
-      // 연장근무 → 리마인더 스누즈(일정 시간 후 재개)
-      await NotificationService.instance.snoozeReminders();
+      // 연장근무 → 설정된 시간만큼 리마인더 스누즈 후 재개
+      await AttendanceController.performSnooze();
       break;
     case NotificationService.actionSkipCheckIn:
       // 출근 안하기 → 오늘 하루 도착 알림 종료

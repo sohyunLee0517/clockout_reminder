@@ -200,9 +200,19 @@ class AttendanceController {
   }
 
   /// "아직 근무중" / "연장근무" → 리마인더 스누즈(일정 시간 후 재개).
-  Future<void> snooze() async {
+  /// [minutes] 미지정 시 설정값(overtimeSnoozeMinutes)을 사용.
+  Future<void> snooze({int? minutes}) async {
     pendingDeparture.value = null;
-    await NotificationService.instance.snoozeReminders();
+    await NotificationService.instance.snoozeReminders(
+      snoozeMinutes: minutes ?? settings.overtimeSnoozeMinutes,
+    );
+  }
+
+  /// 백그라운드(알림 액션)용 정적 스누즈 — 설정값을 로드해 사용.
+  static Future<void> performSnooze() async {
+    final s = await SettingsService.instance.load();
+    await NotificationService.instance
+        .snoozeReminders(snoozeMinutes: s.overtimeSnoozeMinutes);
   }
 
   /// 퇴근 처리: 기록 저장 + 모든 퇴근 리마인더 취소.

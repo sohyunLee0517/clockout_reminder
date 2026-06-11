@@ -49,9 +49,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required int current,
     int maxHours = 14,
   }) async {
+    final result =
+        await _pickMinutesValue(title: title, current: current, maxHours: maxHours);
+    if (result == null) return;
+    setState(() {
+      if (title.contains('근무')) {
+        _draft = _draft.copyWith(workMinutes: result);
+      } else {
+        _draft = _draft.copyWith(lunchMinutes: result);
+      }
+    });
+  }
+
+  /// 시/분 선택 다이얼로그 — 선택한 총 분을 반환(취소 시 null).
+  Future<int?> _pickMinutesValue({
+    required String title,
+    required int current,
+    int maxHours = 14,
+  }) async {
     int hours = current ~/ 60;
     int minutes = current % 60;
-    final result = await showDialog<int>(
+    return showDialog<int>(
       context: context,
       builder: (context) {
         return StatefulBuilder(
@@ -82,8 +100,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: const Text('취소'),
                 ),
                 FilledButton(
-                  onPressed: () =>
-                      Navigator.pop(context, hours * 60 + minutes),
+                  onPressed: () => Navigator.pop(context, hours * 60 + minutes),
                   child: const Text('확인'),
                 ),
               ],
@@ -92,17 +109,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       },
     );
-    if (result != null) return _applyMinutes(title, result);
   }
 
-  void _applyMinutes(String title, int value) {
-    setState(() {
-      if (title.contains('근무')) {
-        _draft = _draft.copyWith(workMinutes: value);
-      } else {
-        _draft = _draft.copyWith(lunchMinutes: value);
+  /// 연장근무 스누즈 시간 선택 — 프리셋 + 직접 입력.
+  Future<void> _pickSnooze() async {
+    const presets = <int>[30, 60, 90, 120, 180];
+    final result = await showDialog<int>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('연장근무 스누즈'),
+        children: [
+          for (final m in presets)
+            ListTile(
+              title: Text(TimeRules.formatDuration(m)),
+              trailing: m == _draft.overtimeSnoozeMinutes
+                  ? Icon(Icons.check,
+                      color: Theme.of(context).colorScheme.primary)
+                  : null,
+              onTap: () => Navigator.pop(context, m),
+            ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.edit),
+            title: const Text('직접 입력'),
+            onTap: () => Navigator.pop(context, -1),
+          ),
+        ],
+      ),
+    );
+    if (result == null) return;
+    if (result == -1) {
+      final custom = await _pickMinutesValue(
+        title: '연장근무 스누즈',
+        current: _draft.overtimeSnoozeMinutes,
+        maxHours: 6,
+      );
+      if (custom != null && custom > 0) {
+        setState(
+            () => _draft = _draft.copyWith(overtimeSnoozeMinutes: custom));
       }
-    });
+    } else {
+      setState(() => _draft = _draft.copyWith(overtimeSnoozeMinutes: result));
+    }
   }
 
   Widget _numberDropdown({
@@ -313,6 +361,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   value: _draft.clockOutAlarmEnabled,
                   onChanged: (v) => setState(
                       () => _draft = _draft.copyWith(clockOutAlarmEnabled: v)),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.snooze),
+                  title: const Text('연장근무 스누즈'),
+                  subtitle: const Text('"연장근무" 선택 시 다시 알리기까지의 시간'),
+                  trailing: Text(
+                    TimeRules.formatDuration(_draft.overtimeSnoozeMinutes),
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  onTap: _pickSnooze,
                 ),
               ],
             ),

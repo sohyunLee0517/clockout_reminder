@@ -29,6 +29,9 @@ class AppSettings {
   /// 계산된 퇴근시각에 푸시 알림을 보낼지 여부.
   final bool clockOutAlarmEnabled;
 
+  /// 연장근무 선택 시 리마인더를 미룰(스누즈) 시간(분). 기본 60분.
+  final int overtimeSnoozeMinutes;
+
   /// 설정이 한 번이라도 저장되었는지 (초기 온보딩 판단용)
   final bool configured;
 
@@ -42,6 +45,7 @@ class AppSettings {
     required this.geofenceEnabled,
     required this.confirmOnArrival,
     required this.clockOutAlarmEnabled,
+    required this.overtimeSnoozeMinutes,
     required this.configured,
   });
 
@@ -57,6 +61,7 @@ class AppSettings {
       geofenceEnabled: true,
       confirmOnArrival: true,
       clockOutAlarmEnabled: true,
+      overtimeSnoozeMinutes: 60,
       configured: false,
     );
   }
@@ -74,6 +79,7 @@ class AppSettings {
     bool? geofenceEnabled,
     bool? confirmOnArrival,
     bool? clockOutAlarmEnabled,
+    int? overtimeSnoozeMinutes,
     bool? configured,
   }) {
     return AppSettings(
@@ -86,6 +92,8 @@ class AppSettings {
       geofenceEnabled: geofenceEnabled ?? this.geofenceEnabled,
       confirmOnArrival: confirmOnArrival ?? this.confirmOnArrival,
       clockOutAlarmEnabled: clockOutAlarmEnabled ?? this.clockOutAlarmEnabled,
+      overtimeSnoozeMinutes:
+          overtimeSnoozeMinutes ?? this.overtimeSnoozeMinutes,
       configured: configured ?? this.configured,
     );
   }

@@ -172,13 +172,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         );
       }
     } else if (result == 'overtime') {
-      await _controller.snooze();
+      final minutes = await _chooseSnoozeMinutes();
+      if (minutes == null) return; // 취소 시 그대로 대기(알림 계속)
+      await _controller.snooze(minutes: minutes);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('연장근무로 처리했어요. 잠시 후 다시 알려드릴게요.')),
+          SnackBar(
+            content: Text(
+                '연장근무로 처리했어요. ${TimeRules.formatDuration(minutes)} 후 다시 알려드릴게요.'),
+          ),
         );
       }
     }
+  }
+
+  /// 연장근무 스누즈 시간 빠른 선택 (기본값 = 설정값).
+  Future<int?> _chooseSnoozeMinutes() async {
+    final current = _controller.settings.overtimeSnoozeMinutes;
+    final options = <int>{30, 60, 120, current}.toList()..sort();
+    return showDialog<int>(
+      context: context,
+      builder: (_) => SimpleDialog(
+        title: const Text('얼마나 미룰까요?'),
+        children: [
+          for (final m in options)
+            ListTile(
+              title: Text(TimeRules.formatDuration(m)),
+              trailing: m == current
+                  ? const Text('기본', style: TextStyle(fontSize: 12))
+                  : null,
+              onTap: () => Navigator.pop(context, m),
+            ),
+        ],
+      ),
+    );
   }
 
   void _showClockOutSnack() {
