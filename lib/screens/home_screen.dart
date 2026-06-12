@@ -67,6 +67,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _refresh();
       _updateInsideState();
       _controller.checkArrivalMissing();
+      _controller.checkDepartureMissing();
       _maybeShowArrivalDialog();
       _maybeShowDepartureDialog();
     }

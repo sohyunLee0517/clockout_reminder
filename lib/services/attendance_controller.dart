@@ -144,6 +144,49 @@ class AttendanceController {
     );
   }
 
+  // ── 퇴근 미입력: 이탈 후 5분 경과해도 미응답 ──
+  static const _kDepartDate = 'depart_date';
+  static const _kDepartTime = 'depart_time_millis';
+  static const _kDepartMissingSent = 'depart_missing_sent';
+  static const _kDepartResponded = 'depart_responded';
+
+  /// 오늘 첫 이탈 시각을 기록한다.
+  Future<void> _recordDeparture() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString(_kDepartDate) != _todayKey()) {
+      await prefs.setString(_kDepartDate, _todayKey());
+      await prefs.setInt(
+          _kDepartTime, DateTime.now().millisecondsSinceEpoch);
+      await prefs.remove(_kDepartMissingSent);
+      await prefs.remove(_kDepartResponded);
+    }
+  }
+
+  /// 이탈 푸시에 응답(퇴근/연장근무)했음을 기록 → 미입력 채널 전송 안 함.
+  Future<void> _markDepartureResponded() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kDepartResponded, _todayKey());
+  }
+
+  /// 이탈 후 5분 경과 + 미응답(미퇴근)이면 "퇴근 미입력" 채널 전송(중복 방지).
+  Future<void> checkDepartureMissing() async {
+    if (!await isCheckedInToday()) return; // 출근 안 했으면 대상 아님
+    if (await DatabaseService.instance.hasCheckedOutToday()) return; // 퇴근함=응답
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString(_kDepartResponded) == _todayKey()) return; // 연장근무 등 응답
+    if (prefs.getString(_kDepartDate) != _todayKey()) return;
+    if (prefs.getString(_kDepartMissingSent) == _todayKey()) return;
+    final at = prefs.getInt(_kDepartTime);
+    if (at == null) return;
+    final left = DateTime.fromMillisecondsSinceEpoch(at);
+    if (DateTime.now().difference(left) < const Duration(minutes: 5)) return;
+    await prefs.setString(_kDepartMissingSent, _todayKey());
+    await _notifyChannels(
+      '⚠️ 퇴근 미입력 — 회사를 벗어났는데 퇴근 체크를 안 했어요 (${_fmtTime(DateTime.now())})',
+      isMissing: true,
+    );
+  }
+
   // ── "오늘 출근 안하기" 플래그 (날짜 기준, 다음 날 자동 해제) ──
   static const _kArrivalDismissed = 'arrival_dismissed_date';
 
@@ -357,6 +400,8 @@ class AttendanceController {
     if (!await isCheckedInToday()) return;
     if (await DatabaseService.instance.hasCheckedOutToday()) return;
 
+    await _recordDeparture(); // 이탈 시각 기록(퇴근 미입력 판단 기준)
+
     await NotificationService.instance.scheduleClockOutReminders(
       firstAt: DateTime.now().add(const Duration(minutes: 5)),
       showFirstNow: true,
@@ -366,17 +411,15 @@ class AttendanceController {
     pendingDeparture.value =
         PendingDeparture(latitude: latitude, longitude: longitude);
 
-    // "출퇴근 미입력" 이벤트 → 채널 전송(설정 켜진 경우).
-    await _notifyChannels(
-      '⚠️ 퇴근 미입력 — 회사를 벗어났는데 퇴근 체크를 안 했어요 (${_fmtTime(DateTime.now())})',
-      isMissing: true,
-    );
+    // 5분 뒤에도 미응답이면 "퇴근 미입력" 채널 전송(앱/지오펜스 살아있을 때).
+    Timer(const Duration(minutes: 5), checkDepartureMissing);
   }
 
   /// "아직 근무중" / "연장근무" → 리마인더 스누즈(일정 시간 후 재개).
   /// [minutes] 미지정 시 설정값(overtimeSnoozeMinutes)을 사용.
   Future<void> snooze({int? minutes}) async {
     pendingDeparture.value = null;
+    await _markDepartureResponded(); // 응답함 → 퇴근 미입력 채널 전송 안 함
     await NotificationService.instance.snoozeReminders(
       snoozeMinutes: minutes ?? settings.overtimeSnoozeMinutes,
     );
@@ -384,6 +427,8 @@ class AttendanceController {
 
   /// 백그라운드(알림 액션)용 정적 스누즈 — 설정값을 로드해 사용.
   static Future<void> performSnooze() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kDepartResponded, _todayKey()); // 응답함
     final s = await SettingsService.instance.load();
     await NotificationService.instance
         .snoozeReminders(snoozeMinutes: s.overtimeSnoozeMinutes);
