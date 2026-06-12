@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>퇴근 알림 — 개인정보처리방침</title>
+  <style>
+    body { font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+           max-width: 760px; margin: 0 auto; padding: 28px 20px 80px; color: #1a2b45; line-height: 1.7; }
+    h1 { font-size: 1.6rem; border-bottom: 2px solid #3a6ea5; padding-bottom: 12px; }
+    h2 { font-size: 1.15rem; margin-top: 32px; color: #2c5680; }
+    .muted { color: #5b6b85; font-size: .92rem; }
+    ul { padding-left: 20px; }
+    code { background:#eef3fa; padding:1px 5px; border-radius:4px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+    th, td { border: 1px solid #d7e0ee; padding: 8px 10px; text-align: left; font-size: .95rem; }
+    th { background: #eef3fa; }
+  </style>
+</head>
+<body>
+  <h1>퇴근 알림 개인정보처리방침</h1>
+  <p class="muted">시행일: 2026년 6월 12일</p>
+
+  <p>‘퇴근 알림’(이하 ‘앱’)은 사용자의 출퇴근 기록을 돕기 위한 도구이며, 아래와 같이 개인정보를 처리합니다.
+     수집되는 정보는 원칙적으로 <strong>사용자 기기 내에만 저장</strong>되며, 별도 서버로 전송되지 않습니다.</p>
+
+  <h2>1. 수집하는 정보와 목적</h2>
+  <table>
+    <tr><th>항목</th><th>목적</th><th>저장 위치</th></tr>
+    <tr><td>위치 정보(GPS)</td><td>회사 반경 진입/이탈 감지, 반경 내 출퇴근 확인</td><td>기기 내 (실시간 처리, 좌표는 출퇴근 기록 시에만 저장)</td></tr>
+    <tr><td>출퇴근 기록(시각·유형·위치)</td><td>근태 기록 저장 및 조회</td><td>기기 내 로컬 DB</td></tr>
+    <tr><td>설정값(회사 좌표, 근무시간 등)</td><td>앱 동작 설정</td><td>기기 내</td></tr>
+    <tr><td>카카오 계정(선택)</td><td>사용자가 연동 시 본인에게 ‘나에게 보내기’ 전송</td><td>카카오 SDK 토큰(기기 내)</td></tr>
+    <tr><td>슬랙 Webhook/이메일(선택)</td><td>사용자가 연동 시 출퇴근 메시지 전송</td><td>기기 내</td></tr>
+  </table>
+
+  <h2>2. 위치 정보 처리(백그라운드 포함)</h2>
+  <p>앱은 회사 반경 진입/이탈을 감지하기 위해 <strong>앱이 실행 중이 아닐 때에도(백그라운드) 위치를 사용</strong>할 수 있습니다.
+     위치는 출퇴근 감지·알림 목적으로만 사용되며, 사용자가 출퇴근을 기록한 경우 그 시점의 좌표가 기기 내 기록에 함께 저장됩니다.
+     위치 권한은 사용자가 기기 설정에서 언제든지 변경·철회할 수 있습니다.</p>
+
+  <h2>3. 제3자 제공 및 외부 전송</h2>
+  <ul>
+    <li>앱은 수집한 정보를 제3자에게 판매·제공하지 않습니다.</li>
+    <li>카카오·슬랙 연동은 <strong>사용자가 직접 설정한 경우에만</strong> 동작하며, 출퇴근/미입력 메시지가 사용자가 지정한 본인 카카오(나에게 보내기) 또는 슬랙 대상으로 전송됩니다. 이 전송은 사용자의 명시적 설정에 따른 것입니다.</li>
+  </ul>
+
+  <h2>4. 보유 및 파기</h2>
+  <p>출퇴근 기록 등 데이터는 사용자가 앱에서 삭제하거나 앱을 삭제하면 함께 제거됩니다. 별도 서버에 보관하지 않습니다.</p>
+
+  <h2>5. 사용하는 권한</h2>
+  <ul>
+    <li><strong>위치</strong>(사용 중/항상): 회사 반경 감지</li>
+    <li><strong>알림</strong>: 출퇴근·미입력 리마인더 표시</li>
+  </ul>
+
+  <h2>6. 아동의 개인정보</h2>
+  <p>앱은 만 14세 미만 아동을 대상으로 하지 않습니다.</p>
+
+  <h2>7. 문의처</h2>
+  <p>개인정보 관련 문의: <a href="mailto:nonlyito@gmail.com">nonlyito@gmail.com</a></p>
+
+  <p class="muted">본 방침은 관련 법령 및 서비스 변경에 따라 개정될 수 있으며, 변경 시 본 페이지에 공지합니다.</p>
+</body>
+</html>
