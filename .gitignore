@@ -12,6 +12,12 @@
 .swiftpm/
 migrate_working_dir/
 
+# Android 릴리스 서명 (절대 커밋 금지!)
+**/android/key.properties
+**/android/keystore/
+*.jks
+*.keystore
+
 # IntelliJ related
 *.iml
 *.ipr
