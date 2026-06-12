@@ -85,6 +85,8 @@ class GeofenceManager {
     final controller = AttendanceController.instance;
     switch (geofenceStatus) {
       case GeofenceStatus.ENTER:
+        // 재진입 → 무시 플래그/이탈 추적 리셋(새 사이클).
+        await controller.resetIgnoreOnReentry();
         // 도착 → "출근하시겠습니까?" 확인 흐름.
         await controller.onArrival(
           latitude: location.latitude,

@@ -34,8 +34,8 @@ Future<void> main() async {
         );
         await _notifyIfBlocked(r, isCheckIn: true);
         break;
-      case NotificationService.actionSkipCheckIn:
-        await controller.skipArrivalToday();
+      case NotificationService.actionIgnoreArrival:
+        await controller.ignoreArrival();
         break;
       case NotificationService.actionConfirmCheckOut:
         final r = await controller.guardedCheckOut(
@@ -45,6 +45,9 @@ Future<void> main() async {
         break;
       case NotificationService.actionOvertime:
         await controller.snooze();
+        break;
+      case NotificationService.actionIgnoreDeparture:
+        await controller.ignoreDeparture();
         break;
     }
     await WidgetService.sync();

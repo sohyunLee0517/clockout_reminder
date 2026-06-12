@@ -31,10 +31,13 @@ void notificationTapBackground(NotificationResponse response) async {
       // 연장근무 → 설정된 시간만큼 리마인더 스누즈 후 재개
       await AttendanceController.performSnooze();
       break;
-    case NotificationService.actionSkipCheckIn:
-      // 출근 안하기 → 오늘 하루 도착 알림 종료
-      await AttendanceController.markArrivalDismissedToday();
-      await NotificationService.instance.cancelArrivalReminders();
+    case NotificationService.actionIgnoreArrival:
+      // 출근 무시 → 이번 방문 동안 중단(재진입 시 리셋)
+      await AttendanceController.performIgnoreArrival();
+      break;
+    case NotificationService.actionIgnoreDeparture:
+      // 퇴근 무시 → 이번 이탈 동안 중단(재진입 후 리셋)
+      await AttendanceController.performIgnoreDeparture();
       break;
   }
   await WidgetService.sync();
@@ -65,9 +68,10 @@ class NotificationService {
   static const _reminderIntervalMin = 5;
 
   static const actionConfirmCheckIn = 'confirm_checkin';
-  static const actionSkipCheckIn = 'skip_checkin';
+  static const actionIgnoreArrival = 'ignore_arrival';
   static const actionConfirmCheckOut = 'confirm_checkout';
   static const actionOvertime = 'overtime';
+  static const actionIgnoreDeparture = 'ignore_departure';
   static const _arrivalCategory = 'arrival_category';
   static const _reminderCategory = 'clockout_reminder_category';
 
@@ -94,7 +98,7 @@ class NotificationService {
           _arrivalCategory,
           actions: [
             DarwinNotificationAction.plain(actionConfirmCheckIn, '출근하기'),
-            DarwinNotificationAction.plain(actionSkipCheckIn, '출근 안하기'),
+            DarwinNotificationAction.plain(actionIgnoreArrival, '무시'),
           ],
         ),
         DarwinNotificationCategory(
@@ -102,6 +106,7 @@ class NotificationService {
           actions: [
             DarwinNotificationAction.plain(actionConfirmCheckOut, '퇴근하기'),
             DarwinNotificationAction.plain(actionOvertime, '연장근무'),
+            DarwinNotificationAction.plain(actionIgnoreDeparture, '무시'),
           ],
         ),
       ],
@@ -166,7 +171,7 @@ class NotificationService {
           actions: [
             AndroidNotificationAction(actionConfirmCheckIn, '출근하기',
                 showsUserInterface: true),
-            AndroidNotificationAction(actionSkipCheckIn, '출근 안하기',
+            AndroidNotificationAction(actionIgnoreArrival, '무시',
                 showsUserInterface: true),
           ],
         ),
@@ -186,6 +191,8 @@ class NotificationService {
             AndroidNotificationAction(actionConfirmCheckOut, '퇴근하기',
                 showsUserInterface: true),
             AndroidNotificationAction(actionOvertime, '연장근무',
+                showsUserInterface: true),
+            AndroidNotificationAction(actionIgnoreDeparture, '무시',
                 showsUserInterface: true),
           ],
         ),

@@ -120,9 +120,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _maybeShowArrivalDialog() async {
     final pending = _controller.pendingArrival.value;
     if (pending == null || _dialogOpen || !mounted) return;
-    // 이미 출근했거나 오늘 "출근 안하기" 를 누른 상태면 대기 해제.
-    if (await _controller.isCheckedInToday() ||
-        await AttendanceController.isArrivalDismissedToday()) {
+    // 이미 출근했으면 대기 해제.
+    if (await _controller.isCheckedInToday()) {
       _controller.pendingArrival.value = null;
       return;
     }
@@ -132,11 +131,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('회사에 도착했어요'),
-        content: const Text('출근하시겠습니까?\n"출근 안하기"를 누르면 오늘은 더 묻지 않아요.'),
+        content: const Text('출근하시겠습니까?\n잠깐 들른 거면 "무시"를 누르세요. (회사 재진입 시 다시 알림)'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, 'skip'),
-            child: const Text('출근 안하기'),
+            onPressed: () => Navigator.pop(context, 'ignore'),
+            child: const Text('무시'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, 'checkin'),
@@ -154,11 +153,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
       if (_showBlockedToast(r, isCheckIn: true)) return;
       _showClockOutSnack();
-    } else if (result == 'skip') {
-      await _controller.skipArrivalToday();
+    } else if (result == 'ignore') {
+      await _controller.ignoreArrival();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('오늘은 출근 알림을 끌게요.')),
+          const SnackBar(content: Text('출근 알림을 무시했어요. (회사 재진입 시 리셋)')),
         );
       }
     }
@@ -178,8 +177,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('회사를 벗어났어요'),
-        content: const Text('퇴근하셨나요?\n아직 근무 중이면 "연장근무"를 누르세요.'),
+        content: const Text(
+            '퇴근하셨나요?\n잠깐 외출이면 "무시", 더 일하면 "연장근무"를 누르세요.'),
         actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'ignore'),
+            child: const Text('무시'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, 'overtime'),
             child: const Text('연장근무'),
@@ -202,6 +206,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('퇴근이 기록되었습니다. 수고하셨어요!')),
+        );
+      }
+    } else if (result == 'ignore') {
+      await _controller.ignoreDeparture();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('퇴근 알림을 무시했어요. (회사 재진입 시 리셋)')),
         );
       }
     } else if (result == 'overtime') {

@@ -79,10 +79,9 @@ class AttendanceController {
   }
 
   /// 회사 반경 진입 시 호출. 확인 옵션에 따라 다이얼로그/알림 또는 자동 출근.
-  /// 출근을 누르지 않으면 5분 간격으로 반복 알림(오늘 "출근 안하기" 시 종료).
+  /// 출근을 누르지 않으면 5분 간격으로 반복 알림("무시" 시 이번 방문 동안 중단).
   Future<void> onArrival({double? latitude, double? longitude}) async {
     if (await isCheckedInToday()) return;
-    if (await isArrivalDismissedToday()) return; // 오늘 "출근 안하기" 누름
 
     await _recordArrival(); // 도착시각 기록(출근 미입력 판단 기준)
 
@@ -106,15 +105,12 @@ class AttendanceController {
   static const _kArrivalTime = 'arrival_time_millis';
   static const _kArrivalMissingSent = 'arrival_missing_sent';
 
-  /// 오늘 첫 도착시각을 기록한다.
+  /// 이번 도착(진입)의 시각을 기록한다. (진입할 때마다 갱신)
   Future<void> _recordArrival() async {
     final prefs = await SharedPreferences.getInstance();
-    if (prefs.getString(_kArrivalDate) != _todayKey()) {
-      await prefs.setString(_kArrivalDate, _todayKey());
-      await prefs.setInt(
-          _kArrivalTime, DateTime.now().millisecondsSinceEpoch);
-      await prefs.remove(_kArrivalMissingSent);
-    }
+    await prefs.setString(_kArrivalDate, _todayKey());
+    await prefs.setInt(_kArrivalTime, DateTime.now().millisecondsSinceEpoch);
+    await prefs.remove(_kArrivalMissingSent);
   }
 
   /// 출근 안 찍고 반경을 벗어나면 출근 미입력 추적 취소(이벤트 아님).
@@ -127,8 +123,8 @@ class AttendanceController {
   /// 도착 후 5분 경과 + 미체크면 "출근 미입력" 채널 전송(중복 방지).
   Future<void> checkArrivalMissing() async {
     if (await isCheckedInToday()) return;
-    if (await isArrivalDismissedToday()) return; // 의도적 미출근은 제외
     final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_kArrivalIgnored) == true) return; // "무시" 누름
     if (prefs.getString(_kArrivalDate) != _todayKey()) return;
     if (prefs.getString(_kArrivalMissingSent) == _todayKey()) return;
     final at = prefs.getInt(_kArrivalTime);
@@ -150,16 +146,13 @@ class AttendanceController {
   static const _kDepartMissingSent = 'depart_missing_sent';
   static const _kDepartResponded = 'depart_responded';
 
-  /// 오늘 첫 이탈 시각을 기록한다.
+  /// 이번 이탈의 시각을 기록한다. (이탈할 때마다 갱신)
   Future<void> _recordDeparture() async {
     final prefs = await SharedPreferences.getInstance();
-    if (prefs.getString(_kDepartDate) != _todayKey()) {
-      await prefs.setString(_kDepartDate, _todayKey());
-      await prefs.setInt(
-          _kDepartTime, DateTime.now().millisecondsSinceEpoch);
-      await prefs.remove(_kDepartMissingSent);
-      await prefs.remove(_kDepartResponded);
-    }
+    await prefs.setString(_kDepartDate, _todayKey());
+    await prefs.setInt(_kDepartTime, DateTime.now().millisecondsSinceEpoch);
+    await prefs.remove(_kDepartMissingSent);
+    await prefs.remove(_kDepartResponded);
   }
 
   /// 이탈 푸시에 응답(퇴근/연장근무)했음을 기록 → 미입력 채널 전송 안 함.
@@ -173,6 +166,7 @@ class AttendanceController {
     if (!await isCheckedInToday()) return; // 출근 안 했으면 대상 아님
     if (await DatabaseService.instance.hasCheckedOutToday()) return; // 퇴근함=응답
     final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_kDepartIgnored) == true) return; // "무시" 누름
     if (prefs.getString(_kDepartResponded) == _todayKey()) return; // 연장근무 등 응답
     if (prefs.getString(_kDepartDate) != _todayKey()) return;
     if (prefs.getString(_kDepartMissingSent) == _todayKey()) return;
@@ -187,22 +181,57 @@ class AttendanceController {
     );
   }
 
-  // ── "오늘 출근 안하기" 플래그 (날짜 기준, 다음 날 자동 해제) ──
-  static const _kArrivalDismissed = 'arrival_dismissed_date';
+  // ── "무시" (방문 단위, 재진입 시 리셋) ──
+  static const _kArrivalIgnored = 'arrival_ignored';
+  static const _kDepartIgnored = 'depart_ignored';
 
   static String _todayKey() {
     final n = DateTime.now();
     return '${n.year}-${n.month}-${n.day}';
   }
 
-  static Future<bool> isArrivalDismissedToday() async {
+  /// 출근 무시: 이번 방문 동안 출근 푸시·미입력 중단(재진입 시 리셋).
+  Future<void> ignoreArrival() async {
+    pendingArrival.value = null;
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_kArrivalDismissed) == _todayKey();
+    await prefs.setBool(_kArrivalIgnored, true);
+    await NotificationService.instance.cancelArrivalReminders();
+    await clearArrivalTracking();
   }
 
-  static Future<void> markArrivalDismissedToday() async {
+  /// 퇴근 무시: 이번 이탈 동안 퇴근 푸시·미입력 중단(재진입 후 다시 떠나면 정상).
+  Future<void> ignoreDeparture() async {
+    pendingDeparture.value = null;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kArrivalDismissed, _todayKey());
+    await prefs.setBool(_kDepartIgnored, true);
+    await NotificationService.instance.cancelClockOutReminders();
+  }
+
+  /// 회사 재진입 시 호출 — 무시 플래그/이탈 추적을 초기화(새 사이클).
+  Future<void> resetIgnoreOnReentry() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kArrivalIgnored, false);
+    await prefs.setBool(_kDepartIgnored, false);
+    await prefs.remove(_kDepartDate);
+    await prefs.remove(_kDepartTime);
+    await prefs.remove(_kDepartMissingSent);
+    await prefs.remove(_kDepartResponded);
+  }
+
+  /// 백그라운드(알림 액션)용 정적 출근 무시.
+  static Future<void> performIgnoreArrival() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kArrivalIgnored, true);
+    await prefs.remove(_kArrivalDate);
+    await prefs.remove(_kArrivalTime);
+    await NotificationService.instance.cancelArrivalReminders();
+  }
+
+  /// 백그라운드(알림 액션)용 정적 퇴근 무시.
+  static Future<void> performIgnoreDeparture() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kDepartIgnored, true);
+    await NotificationService.instance.cancelClockOutReminders();
   }
 
   Future<bool> isCheckedInToday() async {
@@ -345,13 +374,6 @@ class AttendanceController {
     var h = t.hour % 12;
     if (h == 0) h = 12;
     return '${pm ? '오후' : '오전'} $h:${t.minute.toString().padLeft(2, '0')}';
-  }
-
-  /// "출근 안하기" → 오늘 하루 도착 알림 종료.
-  Future<void> skipArrivalToday() async {
-    pendingArrival.value = null;
-    await markArrivalDismissedToday();
-    await NotificationService.instance.cancelArrivalReminders();
   }
 
   /// 출근 취소: 오늘 출근(과 퇴근) 기록 삭제 + 모든 리마인더 취소 → "출근 전".
