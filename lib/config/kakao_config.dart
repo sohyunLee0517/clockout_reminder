@@ -5,7 +5,7 @@
 /// ⚠️ 이 값을 바꾸면 아래 두 곳도 같은 키로 맞춰야 합니다:
 ///   - iOS:     ios/Runner/Info.plist 의 CFBundleURLSchemes  →  kakao{네이티브앱키}
 ///   - Android: android/app/src/main/AndroidManifest.xml 의 kakao{네이티브앱키}://oauth
-const String kakaoNativeAppKey = 'YOUR_KAKAO_NATIVE_APP_KEY';
+const String kakaoNativeAppKey = 'e83d32911eb1aec3b93a0db9d3b8bc1a';
 
 /// 키가 채워졌는지 여부(미설정이면 카카오 기능 비활성).
 bool get isKakaoConfigured =>
