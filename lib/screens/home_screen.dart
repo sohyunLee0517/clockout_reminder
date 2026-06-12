@@ -116,11 +116,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
     _dialogOpen = false;
     if (result == 'checkin') {
-      await _controller.confirmCheckIn(
+      final r = await _controller.guardedCheckIn(
         trigger: AttendanceTrigger.geofenceEnter,
         latitude: pending.latitude,
         longitude: pending.longitude,
       );
+      if (_showBlockedSnack(r, isCheckIn: true)) return;
       _showClockOutSnack();
     } else if (result == 'skip') {
       await _controller.skipArrivalToday();
@@ -161,11 +162,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
     _dialogOpen = false;
     if (result == 'checkout') {
-      await _controller.checkOut(
+      final r = await _controller.guardedCheckOut(
         trigger: AttendanceTrigger.geofenceExit,
         latitude: pending.latitude,
         longitude: pending.longitude,
       );
+      if (_showBlockedSnack(r, isCheckIn: false)) return;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('퇴근이 기록되었습니다. 수고하셨어요!')),
@@ -217,13 +219,29 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// 반경 밖/위치 불명 시 안내 스낵바. 차단되면 true 반환.
+  bool _showBlockedSnack(AttendanceResult r, {required bool isCheckIn}) {
+    if (r == AttendanceResult.ok || r == AttendanceResult.noop) return false;
+    final what = isCheckIn ? '출근' : '퇴근';
+    final msg = r == AttendanceResult.outside
+        ? '회사 반경 안에서만 $what할 수 있어요.'
+        : '현재 위치를 확인할 수 없어요. 위치 권한·GPS를 확인해 주세요.';
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
+    return true;
+  }
+
   Future<void> _manualCheckIn() async {
-    await _controller.confirmCheckIn(trigger: AttendanceTrigger.manual);
+    final r = await _controller.guardedCheckIn(trigger: AttendanceTrigger.manual);
+    if (_showBlockedSnack(r, isCheckIn: true)) return;
     _showClockOutSnack();
   }
 
   Future<void> _manualCheckOut() async {
-    await _controller.checkOut(trigger: AttendanceTrigger.manual);
+    final r =
+        await _controller.guardedCheckOut(trigger: AttendanceTrigger.manual);
+    if (_showBlockedSnack(r, isCheckIn: false)) return;
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('퇴근이 기록되었습니다. 수고하셨어요!')),

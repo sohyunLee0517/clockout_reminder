@@ -90,12 +90,12 @@ Future<void> interactiveCallback(Uri? uri) async {
 
   switch (uri?.host) {
     case 'checkin':
-      await AttendanceController.performCheckIn(
+      await AttendanceController.staticGuardedCheckIn(
         trigger: AttendanceTrigger.manual,
       );
       break;
     case 'checkout':
-      await AttendanceController.performCheckOut(
+      await AttendanceController.staticGuardedCheckOut(
         trigger: AttendanceTrigger.manual,
       );
       break;

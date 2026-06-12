@@ -18,12 +18,12 @@ void notificationTapBackground(NotificationResponse response) async {
 
   switch (response.actionId) {
     case NotificationService.actionConfirmCheckIn:
-      await AttendanceController.performCheckIn(
+      await AttendanceController.staticGuardedCheckIn(
         trigger: AttendanceTrigger.geofenceEnter,
       );
       break;
     case NotificationService.actionConfirmCheckOut:
-      await AttendanceController.performCheckOut(
+      await AttendanceController.staticGuardedCheckOut(
         trigger: AttendanceTrigger.manual,
       );
       break;

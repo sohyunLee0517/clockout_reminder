@@ -5,8 +5,17 @@ import '../models/app_settings.dart';
 import '../models/attendance_record.dart';
 import '../utils/time_rules.dart';
 import 'database_service.dart';
+import 'location_gate.dart';
 import 'notification_service.dart';
 import 'settings_service.dart';
+
+/// 출퇴근 시도 결과.
+enum AttendanceResult {
+  ok, // 정상 처리
+  outside, // 회사 반경 밖이라 차단
+  unknown, // 위치를 확인할 수 없어 차단
+  noop, // 이미 처리됨(중복) 등
+}
 
 /// 도착 후 출근 확인 대기 상태 (UI 다이얼로그 표시용).
 class PendingArrival {
@@ -105,6 +114,82 @@ class AttendanceController {
     return (await _todayCheckIn()) != null;
   }
 
+  // ── 위치 게이트가 적용된 출퇴근 (회사 반경 안에서만 가능) ──
+
+  /// 반경 검사 후 출근. 결과에 따라 UI/알림에서 피드백할 수 있다.
+  Future<AttendanceResult> guardedCheckIn({
+    required AttendanceTrigger trigger,
+    double? latitude,
+    double? longitude,
+  }) async {
+    if (await isCheckedInToday()) return AttendanceResult.noop;
+    final inside = await LocationGate.isInsideOffice(settings);
+    if (inside == false) return AttendanceResult.outside;
+    if (inside == null) return AttendanceResult.unknown;
+    await confirmCheckIn(
+        trigger: trigger, latitude: latitude, longitude: longitude);
+    return AttendanceResult.ok;
+  }
+
+  /// 반경 검사 후 퇴근.
+  Future<AttendanceResult> guardedCheckOut({
+    required AttendanceTrigger trigger,
+    double? latitude,
+    double? longitude,
+  }) async {
+    final db = DatabaseService.instance;
+    if (!await isCheckedInToday()) return AttendanceResult.noop;
+    if (await db.hasCheckedOutToday()) return AttendanceResult.noop;
+    final inside = await LocationGate.isInsideOffice(settings);
+    if (inside == false) return AttendanceResult.outside;
+    if (inside == null) return AttendanceResult.unknown;
+    await checkOut(
+        trigger: trigger, latitude: latitude, longitude: longitude);
+    return AttendanceResult.ok;
+  }
+
+  /// 백그라운드(위젯/알림 액션)용 정적 출근 — 차단 시 알림으로 안내.
+  static Future<void> staticGuardedCheckIn({
+    required AttendanceTrigger trigger,
+    double? latitude,
+    double? longitude,
+  }) async {
+    final s = await SettingsService.instance.load();
+    final inside = await LocationGate.isInsideOffice(s);
+    if (inside != true) {
+      await NotificationService.instance.showInstant(
+        title: '출근하지 못했어요',
+        body: inside == false
+            ? '회사 반경 안에서만 출근할 수 있어요.'
+            : '현재 위치를 확인할 수 없어요. 위치 권한·GPS를 확인해 주세요.',
+      );
+      return;
+    }
+    await performCheckIn(
+        trigger: trigger, latitude: latitude, longitude: longitude);
+  }
+
+  /// 백그라운드(위젯/알림 액션)용 정적 퇴근 — 차단 시 알림으로 안내.
+  static Future<void> staticGuardedCheckOut({
+    required AttendanceTrigger trigger,
+    double? latitude,
+    double? longitude,
+  }) async {
+    final s = await SettingsService.instance.load();
+    final inside = await LocationGate.isInsideOffice(s);
+    if (inside != true) {
+      await NotificationService.instance.showInstant(
+        title: '퇴근하지 못했어요',
+        body: inside == false
+            ? '회사 반경 안에서만 퇴근할 수 있어요.'
+            : '현재 위치를 확인할 수 없어요. 위치 권한·GPS를 확인해 주세요.',
+      );
+      return;
+    }
+    await performCheckOut(
+        trigger: trigger, latitude: latitude, longitude: longitude);
+  }
+
   Future<AttendanceRecord?> _todayCheckIn() async {
     final today = await DatabaseService.instance.getByDate(DateTime.now());
     for (final r in today) {
@@ -193,7 +278,7 @@ class AttendanceController {
       firstAt: DateTime.now().add(const Duration(minutes: 5)),
       showFirstNow: true,
       title: '회사를 벗어났어요',
-      body: '퇴근하셨나요? "퇴근하기"를 누르면 기록됩니다.',
+      body: '퇴근 체크를 안 하셨어요. 퇴근은 회사 반경 안에서 찍어주세요.',
     );
     pendingDeparture.value =
         PendingDeparture(latitude: latitude, longitude: longitude);

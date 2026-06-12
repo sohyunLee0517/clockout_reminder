@@ -22,15 +22,19 @@ Future<void> main() async {
     final controller = AttendanceController.instance;
     switch (response.actionId) {
       case NotificationService.actionConfirmCheckIn:
-        await controller.confirmCheckIn(
+        final r = await controller.guardedCheckIn(
           trigger: AttendanceTrigger.geofenceEnter,
         );
+        await _notifyIfBlocked(r, isCheckIn: true);
         break;
       case NotificationService.actionSkipCheckIn:
         await controller.skipArrivalToday();
         break;
       case NotificationService.actionConfirmCheckOut:
-        await controller.checkOut(trigger: AttendanceTrigger.manual);
+        final r = await controller.guardedCheckOut(
+          trigger: AttendanceTrigger.manual,
+        );
+        await _notifyIfBlocked(r, isCheckIn: false);
         break;
       case NotificationService.actionOvertime:
         await controller.snooze();
@@ -56,6 +60,19 @@ Future<void> main() async {
   await WidgetService.sync();
 
   runApp(ClockOutApp(initialSettings: settings));
+}
+
+/// 알림 액션으로 출퇴근이 반경 밖이라 차단됐을 때 안내 알림.
+Future<void> _notifyIfBlocked(AttendanceResult r,
+    {required bool isCheckIn}) async {
+  if (r == AttendanceResult.outside || r == AttendanceResult.unknown) {
+    await NotificationService.instance.showInstant(
+      title: isCheckIn ? '출근하지 못했어요' : '퇴근하지 못했어요',
+      body: r == AttendanceResult.outside
+          ? '회사 반경 안에서만 ${isCheckIn ? '출근' : '퇴근'}할 수 있어요.'
+          : '현재 위치를 확인할 수 없어요. 위치 권한·GPS를 확인해 주세요.',
+    );
+  }
 }
 
 class ClockOutApp extends StatelessWidget {
