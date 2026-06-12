@@ -92,13 +92,20 @@ class GeofenceManager {
         );
         break;
       case GeofenceStatus.EXIT:
-        // 자동 퇴근하지 않고 "퇴근하셨나요?" 확인 흐름(응답 없으면 5분마다 반복).
-        await controller.onDeparture(
-          latitude: location.latitude,
-          longitude: location.longitude,
-        );
+        if (await controller.isCheckedInToday()) {
+          // 출근 찍은 상태에서 이탈 → "퇴근하셨나요?" 흐름(미입력 이벤트).
+          await controller.onDeparture(
+            latitude: location.latitude,
+            longitude: location.longitude,
+          );
+        } else {
+          // 출근 안 찍고 그냥 나감 → 이벤트 아님. 출근 미입력 추적만 취소.
+          await controller.clearArrivalTracking();
+        }
         break;
       case GeofenceStatus.DWELL:
+        // 머무는 동안 5분 경과 + 미체크면 출근 미입력 전송(타이머 보완).
+        await controller.checkArrivalMissing();
         break;
     }
   }

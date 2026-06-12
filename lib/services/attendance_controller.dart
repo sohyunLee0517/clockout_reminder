@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -81,10 +83,15 @@ class AttendanceController {
   Future<void> onArrival({double? latitude, double? longitude}) async {
     if (await isCheckedInToday()) return;
     if (await isArrivalDismissedToday()) return; // 오늘 "출근 안하기" 누름
+
+    await _recordArrival(); // 도착시각 기록(출근 미입력 판단 기준)
+
     if (settings.confirmOnArrival) {
       await NotificationService.instance.startArrivalReminders();
       pendingArrival.value =
           PendingArrival(latitude: latitude, longitude: longitude);
+      // 5분 뒤에도 미체크면 "출근 미입력" 채널 전송 (앱/지오펜스 살아있을 때).
+      Timer(const Duration(minutes: 5), checkArrivalMissing);
     } else {
       await confirmCheckIn(
         trigger: AttendanceTrigger.geofenceEnter,
@@ -92,6 +99,49 @@ class AttendanceController {
         longitude: longitude,
       );
     }
+  }
+
+  // ── 출근 미입력: 도착 후 5분 경과해도 미체크 ──
+  static const _kArrivalDate = 'arrival_date';
+  static const _kArrivalTime = 'arrival_time_millis';
+  static const _kArrivalMissingSent = 'arrival_missing_sent';
+
+  /// 오늘 첫 도착시각을 기록한다.
+  Future<void> _recordArrival() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString(_kArrivalDate) != _todayKey()) {
+      await prefs.setString(_kArrivalDate, _todayKey());
+      await prefs.setInt(
+          _kArrivalTime, DateTime.now().millisecondsSinceEpoch);
+      await prefs.remove(_kArrivalMissingSent);
+    }
+  }
+
+  /// 출근 안 찍고 반경을 벗어나면 출근 미입력 추적 취소(이벤트 아님).
+  Future<void> clearArrivalTracking() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kArrivalDate);
+    await prefs.remove(_kArrivalTime);
+  }
+
+  /// 도착 후 5분 경과 + 미체크면 "출근 미입력" 채널 전송(중복 방지).
+  Future<void> checkArrivalMissing() async {
+    if (await isCheckedInToday()) return;
+    if (await isArrivalDismissedToday()) return; // 의도적 미출근은 제외
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString(_kArrivalDate) != _todayKey()) return;
+    if (prefs.getString(_kArrivalMissingSent) == _todayKey()) return;
+    final at = prefs.getInt(_kArrivalTime);
+    if (at == null) return;
+    final arrived = DateTime.fromMillisecondsSinceEpoch(at);
+    if (DateTime.now().difference(arrived) < const Duration(minutes: 5)) {
+      return;
+    }
+    await prefs.setString(_kArrivalMissingSent, _todayKey());
+    await _notifyChannels(
+      '🟡 출근 미입력 — 회사 도착 후 출근 체크를 안 했어요 (${_fmtTime(DateTime.now())})',
+      isMissing: true,
+    );
   }
 
   // ── "오늘 출근 안하기" 플래그 (날짜 기준, 다음 날 자동 해제) ──

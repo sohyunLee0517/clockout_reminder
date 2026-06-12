@@ -527,7 +527,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Divider(height: 1),
           SwitchListTile(
             title: const Text('출퇴근 미입력 전송'),
-            subtitle: const Text('퇴근 안 찍고 회사를 벗어난 경우 등'),
+            subtitle: const Text('퇴근 안 찍고 이탈 · 출근 미입력(도착 후 5분) 등'),
             value: _draft.kakaoOnMissing && _kakaoLinked,
             onChanged: _kakaoLinked
                 ? (v) =>
@@ -584,7 +584,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Divider(height: 1),
           SwitchListTile(
             title: const Text('출퇴근 미입력 전송'),
-            subtitle: const Text('퇴근 안 찍고 회사를 벗어난 경우 등'),
+            subtitle: const Text('퇴근 안 찍고 이탈 · 출근 미입력(도착 후 5분) 등'),
             value: _draft.slackOnMissing && hasUrl,
             onChanged: hasUrl
                 ? (v) =>
