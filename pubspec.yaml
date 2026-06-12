@@ -49,6 +49,8 @@ dependencies:
   latlong2: ^0.9.1
   home_widget: ^0.9.3
   fluttertoast: ^9.1.0
+  kakao_flutter_sdk_user: ^2.0.0+1
+  kakao_flutter_sdk_talk: ^2.0.0+1
 
 dev_dependencies:
   flutter_test:

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 
+import 'config/kakao_config.dart';
 import 'models/app_settings.dart';
 import 'models/attendance_record.dart';
 import 'screens/home_screen.dart';
@@ -15,6 +17,11 @@ Future<void> main() async {
 
   // 한국어 날짜 포맷 데이터 로드.
   await initializeDateFormatting('ko');
+
+  // 카카오 SDK 초기화(네이티브 앱 키가 설정된 경우에만).
+  if (isKakaoConfigured) {
+    KakaoSdk.init(nativeAppKey: kakaoNativeAppKey);
+  }
 
   // 알림 시스템 초기화 + 포그라운드 알림 응답 핸들러 연결.
   await NotificationService.instance.init();

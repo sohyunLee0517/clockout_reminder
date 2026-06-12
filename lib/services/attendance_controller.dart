@@ -5,6 +5,7 @@ import '../models/app_settings.dart';
 import '../models/attendance_record.dart';
 import '../utils/time_rules.dart';
 import 'database_service.dart';
+import 'kakao_service.dart';
 import 'location_gate.dart';
 import 'notification_service.dart';
 import 'settings_service.dart';
@@ -213,6 +214,30 @@ class AttendanceController {
     pendingArrival.value = null;
     await NotificationService.instance.cancelArrivalReminders();
     changed.value++;
+    await _maybeSendKakao(checkIn: true);
+  }
+
+  /// 출퇴근 시 카카오톡 "나에게 보내기" (설정 켜진 경우).
+  Future<void> _maybeSendKakao({required bool checkIn}) async {
+    if (!settings.kakaoEnabled) return;
+    final t = _fmtTime(DateTime.now());
+    final String msg;
+    if (checkIn) {
+      final eta = scheduledClockOut != null
+          ? ' · 예상 퇴근 ${_fmtTime(scheduledClockOut!)}'
+          : '';
+      msg = '🟢 출근 체크 — $t$eta';
+    } else {
+      msg = '🔴 퇴근 체크 — $t\n오늘도 수고하셨어요!';
+    }
+    await KakaoService.sendToMe(msg);
+  }
+
+  static String _fmtTime(DateTime t) {
+    final pm = t.hour >= 12;
+    var h = t.hour % 12;
+    if (h == 0) h = 12;
+    return '${pm ? '오후' : '오전'} $h:${t.minute.toString().padLeft(2, '0')}';
   }
 
   /// "출근 안하기" → 오늘 하루 도착 알림 종료.
@@ -308,6 +333,7 @@ class AttendanceController {
     scheduledClockOut = null;
     pendingDeparture.value = null;
     changed.value++;
+    await _maybeSendKakao(checkIn: false);
   }
 
   /// 포그라운드/백그라운드(위젯 버튼) 공용 순수 퇴근 로직.

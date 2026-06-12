@@ -32,6 +32,9 @@ class AppSettings {
   /// 연장근무 선택 시 리마인더를 미룰(스누즈) 시간(분). 기본 60분.
   final int overtimeSnoozeMinutes;
 
+  /// 출퇴근 시 카카오톡 "나에게 보내기" 전송 여부.
+  final bool kakaoEnabled;
+
   /// 설정이 한 번이라도 저장되었는지 (초기 온보딩 판단용)
   final bool configured;
 
@@ -46,6 +49,7 @@ class AppSettings {
     required this.confirmOnArrival,
     required this.clockOutAlarmEnabled,
     required this.overtimeSnoozeMinutes,
+    required this.kakaoEnabled,
     required this.configured,
   });
 
@@ -62,6 +66,7 @@ class AppSettings {
       confirmOnArrival: true,
       clockOutAlarmEnabled: true,
       overtimeSnoozeMinutes: 60,
+      kakaoEnabled: false,
       configured: false,
     );
   }
@@ -80,6 +85,7 @@ class AppSettings {
     bool? confirmOnArrival,
     bool? clockOutAlarmEnabled,
     int? overtimeSnoozeMinutes,
+    bool? kakaoEnabled,
     bool? configured,
   }) {
     return AppSettings(
@@ -94,6 +100,7 @@ class AppSettings {
       clockOutAlarmEnabled: clockOutAlarmEnabled ?? this.clockOutAlarmEnabled,
       overtimeSnoozeMinutes:
           overtimeSnoozeMinutes ?? this.overtimeSnoozeMinutes,
+      kakaoEnabled: kakaoEnabled ?? this.kakaoEnabled,
       configured: configured ?? this.configured,
     );
   }

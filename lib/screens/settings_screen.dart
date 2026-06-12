@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../config/kakao_config.dart';
 import '../models/app_settings.dart';
+import '../services/kakao_service.dart';
 import '../services/permission_service.dart';
 import '../utils/time_rules.dart';
 import 'map_picker_screen.dart';
@@ -19,10 +21,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   static const _unitOptions = <int>[1, 5, 10, 15, 30, 60];
 
+  bool _kakaoLinked = false;
+  bool _kakaoBusy = false;
+
   @override
   void initState() {
     super.initState();
     _draft = widget.settings;
+    _refreshKakaoLinked();
+  }
+
+  Future<void> _refreshKakaoLinked() async {
+    final linked = await KakaoService.isLinked();
+    if (mounted) setState(() => _kakaoLinked = linked);
+  }
+
+  Future<void> _kakaoLogin() async {
+    setState(() => _kakaoBusy = true);
+    final ok = await KakaoService.login();
+    if (!mounted) return;
+    setState(() {
+      _kakaoBusy = false;
+      _kakaoLinked = ok;
+    });
+    _snack(ok ? '카카오 계정이 연결되었습니다.' : '카카오 연결에 실패했어요.');
+  }
+
+  Future<void> _kakaoLogout() async {
+    setState(() => _kakaoBusy = true);
+    await KakaoService.logout();
+    if (!mounted) return;
+    setState(() {
+      _kakaoBusy = false;
+      _kakaoLinked = false;
+      _draft = _draft.copyWith(kakaoEnabled: false);
+    });
+    _snack('카카오 연결을 해제했습니다.');
   }
 
   Future<void> _pickOnMap() async {
@@ -377,6 +411,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          _sectionTitle(theme, '외부 연동'),
+          _kakaoCard(theme),
+          const SizedBox(height: 16),
           _sectionTitle(theme, '권한'),
           Card(
             child: Column(
@@ -424,6 +461,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style:
                 FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
             child: const Text('저장하고 적용'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _kakaoCard(ThemeData theme) {
+    // 네이티브 앱 키 미설정 시 안내만 표시.
+    if (!isKakaoConfigured) {
+      return Card(
+        child: ListTile(
+          leading: const Icon(Icons.chat_bubble_outline),
+          title: const Text('카카오톡 알림'),
+          subtitle: const Text('카카오 디벨로퍼스 앱 키 설정이 필요해요.\n(개발자 설정 후 사용 가능)'),
+          isThreeLine: true,
+        ),
+      );
+    }
+    return Card(
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(
+              _kakaoLinked ? Icons.check_circle : Icons.chat_bubble_outline,
+              color: _kakaoLinked ? Colors.green : null,
+            ),
+            title: const Text('카카오 계정'),
+            subtitle: Text(_kakaoLinked ? '연결됨 (나에게 보내기)' : '연결 안 됨'),
+            trailing: _kakaoBusy
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : TextButton(
+                    onPressed: _kakaoLinked ? _kakaoLogout : _kakaoLogin,
+                    child: Text(_kakaoLinked ? '연결 해제' : '카카오 로그인'),
+                  ),
+          ),
+          const Divider(height: 1),
+          SwitchListTile(
+            title: const Text('출퇴근 시 카카오로 나에게 알림'),
+            subtitle: const Text('"나와의 채팅"으로 출근/퇴근 메시지 전송'),
+            value: _draft.kakaoEnabled && _kakaoLinked,
+            onChanged: _kakaoLinked
+                ? (v) => setState(() => _draft = _draft.copyWith(kakaoEnabled: v))
+                : (v) {
+                    if (v) _snack('먼저 카카오 로그인을 해주세요.');
+                  },
           ),
         ],
       ),

@@ -17,6 +17,7 @@ class SettingsService {
   static const _kConfirm = 'confirm_on_arrival';
   static const _kClockOutAlarm = 'clockout_alarm_enabled';
   static const _kOvertimeSnooze = 'overtime_snooze_minutes';
+  static const _kKakao = 'kakao_enabled';
   static const _kConfigured = 'configured';
 
   Future<AppSettings> load() async {
@@ -35,6 +36,7 @@ class SettingsService {
           prefs.getBool(_kClockOutAlarm) ?? d.clockOutAlarmEnabled,
       overtimeSnoozeMinutes:
           prefs.getInt(_kOvertimeSnooze) ?? d.overtimeSnoozeMinutes,
+      kakaoEnabled: prefs.getBool(_kKakao) ?? d.kakaoEnabled,
       configured: prefs.getBool(_kConfigured) ?? d.configured,
     );
   }
@@ -51,6 +53,7 @@ class SettingsService {
     await prefs.setBool(_kConfirm, s.confirmOnArrival);
     await prefs.setBool(_kClockOutAlarm, s.clockOutAlarmEnabled);
     await prefs.setInt(_kOvertimeSnooze, s.overtimeSnoozeMinutes);
+    await prefs.setBool(_kKakao, s.kakaoEnabled);
     await prefs.setBool(_kConfigured, true);
   }
 }
