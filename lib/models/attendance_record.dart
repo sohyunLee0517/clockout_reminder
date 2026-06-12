@@ -13,7 +13,6 @@ enum AttendanceType {
 enum AttendanceTrigger {
   geofenceEnter, // 회사 반경 진입
   geofenceExit, // 회사 반경 이탈
-  scheduledTime, // 퇴근 예정 시간 도달
   manual; // 사용자가 직접 체크
 
   String get label {
@@ -22,8 +21,6 @@ enum AttendanceTrigger {
         return '위치 진입';
       case AttendanceTrigger.geofenceExit:
         return '위치 이탈';
-      case AttendanceTrigger.scheduledTime:
-        return '예정 시간';
       case AttendanceTrigger.manual:
         return '직접 체크';
     }

@@ -80,11 +80,6 @@ class DatabaseService {
     return today.any((r) => r.type == AttendanceType.checkOut);
   }
 
-  Future<AttendanceRecord?> latest() async {
-    final all = await getAll(limit: 1);
-    return all.isEmpty ? null : all.first;
-  }
-
   Future<void> delete(int id) async {
     final db = await _database;
     await db.delete(_table, where: 'id = ?', whereArgs: [id]);

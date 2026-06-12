@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:geofence_service/geofence_service.dart';
 import 'package:intl/intl.dart';
 
@@ -7,6 +10,7 @@ import '../models/attendance_record.dart';
 import '../services/attendance_controller.dart';
 import '../services/database_service.dart';
 import '../services/geofence_manager.dart';
+import '../services/location_gate.dart';
 import '../services/widget_service.dart';
 import '../utils/time_rules.dart';
 import 'history_screen.dart';
@@ -28,6 +32,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _loading = true;
   bool _dialogOpen = false;
 
+  /// 현재 회사 반경 안인지: true=안, false=밖, null=알 수 없음.
+  bool? _insideOffice;
+  Timer? _insideTimer;
+
   @override
   void initState() {
     super.initState();
@@ -35,6 +43,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _controller.changed.addListener(_refresh);
     _controller.pendingArrival.addListener(_maybeShowArrivalDialog);
     _controller.pendingDeparture.addListener(_maybeShowDepartureDialog);
+    GeofenceManager.instance.status.addListener(_updateInsideState);
+    // 화면이 열려 있는 동안 주기적으로 반경 안/밖 갱신.
+    _insideTimer =
+        Timer.periodic(const Duration(seconds: 45), (_) => _updateInsideState());
     _bootstrap();
   }
 
@@ -44,6 +56,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _controller.changed.removeListener(_refresh);
     _controller.pendingArrival.removeListener(_maybeShowArrivalDialog);
     _controller.pendingDeparture.removeListener(_maybeShowDepartureDialog);
+    GeofenceManager.instance.status.removeListener(_updateInsideState);
+    _insideTimer?.cancel();
     super.dispose();
   }
 
@@ -51,9 +65,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _refresh();
+      _updateInsideState();
       _maybeShowArrivalDialog();
       _maybeShowDepartureDialog();
     }
+  }
+
+  Future<void> _updateInsideState() async {
+    final v = await LocationGate.isInsideOffice(_settings);
+    if (mounted && v != _insideOffice) setState(() => _insideOffice = v);
+  }
+
+  void _toast(String msg) {
+    Fluttertoast.showToast(
+      msg: msg,
+      gravity: ToastGravity.BOTTOM,
+      toastLength: Toast.LENGTH_SHORT,
+    );
   }
 
   Future<void> _bootstrap() async {
@@ -61,6 +89,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       WidgetsBinding.instance.addPostFrameCallback((_) => _openSettings());
     }
     await _refresh();
+    _updateInsideState();
     _maybeShowArrivalDialog();
     _maybeShowDepartureDialog();
   }
@@ -121,7 +150,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         latitude: pending.latitude,
         longitude: pending.longitude,
       );
-      if (_showBlockedSnack(r, isCheckIn: true)) return;
+      if (_showBlockedToast(r, isCheckIn: true)) return;
       _showClockOutSnack();
     } else if (result == 'skip') {
       await _controller.skipArrivalToday();
@@ -167,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         latitude: pending.latitude,
         longitude: pending.longitude,
       );
-      if (_showBlockedSnack(r, isCheckIn: false)) return;
+      if (_showBlockedToast(r, isCheckIn: false)) return;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('퇴근이 기록되었습니다. 수고하셨어요!')),
@@ -219,29 +248,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// 반경 밖/위치 불명 시 안내 스낵바. 차단되면 true 반환.
-  bool _showBlockedSnack(AttendanceResult r, {required bool isCheckIn}) {
+  /// 반경 밖/위치 불명 시 토스트 안내. 차단되면 true 반환.
+  bool _showBlockedToast(AttendanceResult r, {required bool isCheckIn}) {
     if (r == AttendanceResult.ok || r == AttendanceResult.noop) return false;
     final what = isCheckIn ? '출근' : '퇴근';
-    final msg = r == AttendanceResult.outside
-        ? '회사 반경 안에서만 $what할 수 있어요.'
-        : '현재 위치를 확인할 수 없어요. 위치 권한·GPS를 확인해 주세요.';
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-    }
+    _toast(r == AttendanceResult.outside
+        ? '회사 반경 밖이에요. 회사 근처에서만 $what할 수 있어요.'
+        : '현재 위치를 확인할 수 없어요. 위치 권한·GPS를 확인해 주세요.');
     return true;
   }
 
   Future<void> _manualCheckIn() async {
     final r = await _controller.guardedCheckIn(trigger: AttendanceTrigger.manual);
-    if (_showBlockedSnack(r, isCheckIn: true)) return;
+    if (_showBlockedToast(r, isCheckIn: true)) return;
     _showClockOutSnack();
   }
 
   Future<void> _manualCheckOut() async {
     final r =
         await _controller.guardedCheckOut(trigger: AttendanceTrigger.manual);
-    if (_showBlockedSnack(r, isCheckIn: false)) return;
+    if (_showBlockedToast(r, isCheckIn: false)) return;
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('퇴근이 기록되었습니다. 수고하셨어요!')),
@@ -428,6 +454,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// 반경 밖이면 비활성 모양 + 누르면 토스트, 안이면 정상 동작하는 주 버튼.
+  Widget _gatedPrimary({
+    required IconData icon,
+    required String label,
+    required VoidCallback onAction,
+  }) {
+    final outside = _insideOffice == false;
+    if (outside) {
+      return FilledButton.icon(
+        onPressed: () =>
+            _toast('회사 반경 밖이에요. 회사 근처에서만 출퇴근할 수 있어요.'),
+        icon: Icon(icon),
+        label: Text(label),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size.fromHeight(52),
+          backgroundColor: Theme.of(context).disabledColor.withValues(alpha: 0.12),
+          foregroundColor: Theme.of(context).disabledColor,
+          elevation: 0,
+        ),
+      );
+    }
+    return FilledButton.icon(
+      onPressed: onAction,
+      icon: Icon(icon),
+      label: Text(label),
+      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+    );
+  }
+
   Widget _actionButtons(ThemeData theme) {
     final checkedIn = _checkIn != null;
     final checkedOut = _checkOut != null;
@@ -435,18 +490,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // 주 동작 버튼 (상태에 따라 출근하기 / 퇴근하기 / 완료)
     final Widget primary;
     if (!checkedIn) {
-      primary = FilledButton.icon(
-        onPressed: _manualCheckIn,
-        icon: const Icon(Icons.login),
-        label: const Text('출근하기'),
-        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+      primary = _gatedPrimary(
+        icon: Icons.login,
+        label: '출근하기',
+        onAction: _manualCheckIn,
       );
     } else if (!checkedOut) {
-      primary = FilledButton.icon(
-        onPressed: _manualCheckOut,
-        icon: const Icon(Icons.logout),
-        label: const Text('퇴근하기'),
-        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+      primary = _gatedPrimary(
+        icon: Icons.logout,
+        label: '퇴근하기',
+        onAction: _manualCheckOut,
       );
     } else {
       primary = FilledButton.icon(

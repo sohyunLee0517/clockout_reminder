@@ -215,12 +215,6 @@ class AttendanceController {
     changed.value++;
   }
 
-  /// 도착 확인 대기 해제(이미 출근한 경우 등). 오늘 알림은 종료하지 않음.
-  Future<void> dismissArrival() async {
-    pendingArrival.value = null;
-    await NotificationService.instance.cancelArrivalReminders();
-  }
-
   /// "출근 안하기" → 오늘 하루 도착 알림 종료.
   Future<void> skipArrivalToday() async {
     pendingArrival.value = null;
