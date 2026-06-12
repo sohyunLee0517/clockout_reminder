@@ -32,8 +32,21 @@ class AppSettings {
   /// 연장근무 선택 시 리마인더를 미룰(스누즈) 시간(분). 기본 60분.
   final int overtimeSnoozeMinutes;
 
-  /// 출퇴근 시 카카오톡 "나에게 보내기" 전송 여부.
-  final bool kakaoEnabled;
+  // ── 외부 연동: 카카오(나에게 보내기) ──
+  /// 출퇴근 체크(실제 기록) 시 카톡 전송.
+  final bool kakaoOnCheck;
+
+  /// 출퇴근 미입력(퇴근 안 찍고 이탈 등) 시 카톡 전송.
+  final bool kakaoOnMissing;
+
+  // ── 외부 연동: 슬랙(Incoming Webhook) ──
+  final String slackWebhookUrl;
+
+  /// 출퇴근 체크 시 슬랙 전송.
+  final bool slackOnCheck;
+
+  /// 출퇴근 미입력 시 슬랙 전송.
+  final bool slackOnMissing;
 
   /// 설정이 한 번이라도 저장되었는지 (초기 온보딩 판단용)
   final bool configured;
@@ -49,7 +62,11 @@ class AppSettings {
     required this.confirmOnArrival,
     required this.clockOutAlarmEnabled,
     required this.overtimeSnoozeMinutes,
-    required this.kakaoEnabled,
+    required this.kakaoOnCheck,
+    required this.kakaoOnMissing,
+    required this.slackWebhookUrl,
+    required this.slackOnCheck,
+    required this.slackOnMissing,
     required this.configured,
   });
 
@@ -66,7 +83,11 @@ class AppSettings {
       confirmOnArrival: true,
       clockOutAlarmEnabled: true,
       overtimeSnoozeMinutes: 60,
-      kakaoEnabled: false,
+      kakaoOnCheck: false,
+      kakaoOnMissing: false,
+      slackWebhookUrl: '',
+      slackOnCheck: false,
+      slackOnMissing: false,
       configured: false,
     );
   }
@@ -85,7 +106,11 @@ class AppSettings {
     bool? confirmOnArrival,
     bool? clockOutAlarmEnabled,
     int? overtimeSnoozeMinutes,
-    bool? kakaoEnabled,
+    bool? kakaoOnCheck,
+    bool? kakaoOnMissing,
+    String? slackWebhookUrl,
+    bool? slackOnCheck,
+    bool? slackOnMissing,
     bool? configured,
   }) {
     return AppSettings(
@@ -100,7 +125,11 @@ class AppSettings {
       clockOutAlarmEnabled: clockOutAlarmEnabled ?? this.clockOutAlarmEnabled,
       overtimeSnoozeMinutes:
           overtimeSnoozeMinutes ?? this.overtimeSnoozeMinutes,
-      kakaoEnabled: kakaoEnabled ?? this.kakaoEnabled,
+      kakaoOnCheck: kakaoOnCheck ?? this.kakaoOnCheck,
+      kakaoOnMissing: kakaoOnMissing ?? this.kakaoOnMissing,
+      slackWebhookUrl: slackWebhookUrl ?? this.slackWebhookUrl,
+      slackOnCheck: slackOnCheck ?? this.slackOnCheck,
+      slackOnMissing: slackOnMissing ?? this.slackOnMissing,
       configured: configured ?? this.configured,
     );
   }

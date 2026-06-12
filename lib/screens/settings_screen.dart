@@ -5,6 +5,7 @@ import '../config/kakao_config.dart';
 import '../models/app_settings.dart';
 import '../services/kakao_service.dart';
 import '../services/permission_service.dart';
+import '../services/slack_service.dart';
 import '../utils/time_rules.dart';
 import 'map_picker_screen.dart';
 
@@ -23,12 +24,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   bool _kakaoLinked = false;
   bool _kakaoBusy = false;
+  late final TextEditingController _slackCtrl;
 
   @override
   void initState() {
     super.initState();
     _draft = widget.settings;
+    _slackCtrl = TextEditingController(text: _draft.slackWebhookUrl);
     _refreshKakaoLinked();
+  }
+
+  @override
+  void dispose() {
+    _slackCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _refreshKakaoLinked() async {
@@ -54,7 +63,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _kakaoBusy = false;
       _kakaoLinked = false;
-      _draft = _draft.copyWith(kakaoEnabled: false);
+      _draft = _draft.copyWith(kakaoOnCheck: false, kakaoOnMissing: false);
     });
     _snack('카카오 연결을 해제했습니다.');
   }
@@ -411,8 +420,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          _sectionTitle(theme, '외부 연동'),
+          _sectionTitle(theme, '외부 연동 · 카카오톡(나에게 보내기)'),
           _kakaoCard(theme),
+          const SizedBox(height: 16),
+          _sectionTitle(theme, '외부 연동 · 슬랙'),
+          _slackCard(theme),
           const SizedBox(height: 16),
           _sectionTitle(theme, '권한'),
           Card(
@@ -502,11 +514,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 1),
           SwitchListTile(
-            title: const Text('출퇴근 시 카카오로 나에게 알림'),
-            subtitle: const Text('"나와의 채팅"으로 출근/퇴근 메시지 전송'),
-            value: _draft.kakaoEnabled && _kakaoLinked,
+            title: const Text('출퇴근 체크 전송'),
+            subtitle: const Text('실제 출근/퇴근 기록 시'),
+            value: _draft.kakaoOnCheck && _kakaoLinked,
             onChanged: _kakaoLinked
-                ? (v) => setState(() => _draft = _draft.copyWith(kakaoEnabled: v))
+                ? (v) =>
+                    setState(() => _draft = _draft.copyWith(kakaoOnCheck: v))
+                : (v) {
+                    if (v) _snack('먼저 카카오 로그인을 해주세요.');
+                  },
+          ),
+          const Divider(height: 1),
+          SwitchListTile(
+            title: const Text('출퇴근 미입력 전송'),
+            subtitle: const Text('퇴근 안 찍고 회사를 벗어난 경우 등'),
+            value: _draft.kakaoOnMissing && _kakaoLinked,
+            onChanged: _kakaoLinked
+                ? (v) =>
+                    setState(() => _draft = _draft.copyWith(kakaoOnMissing: v))
                 : (v) {
                     if (v) _snack('먼저 카카오 로그인을 해주세요.');
                   },
@@ -514,6 +539,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Widget _slackCard(ThemeData theme) {
+    final url = _draft.slackWebhookUrl.trim();
+    final hasUrl = url.isNotEmpty;
+    return Card(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: TextField(
+              controller: _slackCtrl,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                labelText: 'Slack Incoming Webhook URL',
+                hintText: 'https://hooks.slack.com/services/...',
+                prefixIcon: Icon(Icons.link),
+              ),
+              onChanged: (v) =>
+                  setState(() => _draft = _draft.copyWith(slackWebhookUrl: v)),
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: hasUrl ? _testSlack : null,
+              icon: const Icon(Icons.send, size: 16),
+              label: const Text('테스트 메시지 보내기'),
+            ),
+          ),
+          const Divider(height: 1),
+          SwitchListTile(
+            title: const Text('출퇴근 체크 전송'),
+            subtitle: const Text('실제 출근/퇴근 기록 시'),
+            value: _draft.slackOnCheck && hasUrl,
+            onChanged: hasUrl
+                ? (v) =>
+                    setState(() => _draft = _draft.copyWith(slackOnCheck: v))
+                : (v) {
+                    if (v) _snack('먼저 Webhook URL을 입력해 주세요.');
+                  },
+          ),
+          const Divider(height: 1),
+          SwitchListTile(
+            title: const Text('출퇴근 미입력 전송'),
+            subtitle: const Text('퇴근 안 찍고 회사를 벗어난 경우 등'),
+            value: _draft.slackOnMissing && hasUrl,
+            onChanged: hasUrl
+                ? (v) =>
+                    setState(() => _draft = _draft.copyWith(slackOnMissing: v))
+                : (v) {
+                    if (v) _snack('먼저 Webhook URL을 입력해 주세요.');
+                  },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _testSlack() async {
+    final ok = await SlackService.send(
+      _draft.slackWebhookUrl,
+      '✅ 퇴근알림 연동 테스트입니다.',
+    );
+    _snack(ok ? '슬랙으로 테스트 메시지를 보냈어요.' : '전송 실패 — Webhook URL을 확인해 주세요.');
   }
 
   Widget _sectionTitle(ThemeData theme, String text) {

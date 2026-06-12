@@ -17,7 +17,11 @@ class SettingsService {
   static const _kConfirm = 'confirm_on_arrival';
   static const _kClockOutAlarm = 'clockout_alarm_enabled';
   static const _kOvertimeSnooze = 'overtime_snooze_minutes';
-  static const _kKakao = 'kakao_enabled';
+  static const _kKakaoOnCheck = 'kakao_on_check';
+  static const _kKakaoOnMissing = 'kakao_on_missing';
+  static const _kSlackUrl = 'slack_webhook_url';
+  static const _kSlackOnCheck = 'slack_on_check';
+  static const _kSlackOnMissing = 'slack_on_missing';
   static const _kConfigured = 'configured';
 
   Future<AppSettings> load() async {
@@ -36,7 +40,11 @@ class SettingsService {
           prefs.getBool(_kClockOutAlarm) ?? d.clockOutAlarmEnabled,
       overtimeSnoozeMinutes:
           prefs.getInt(_kOvertimeSnooze) ?? d.overtimeSnoozeMinutes,
-      kakaoEnabled: prefs.getBool(_kKakao) ?? d.kakaoEnabled,
+      kakaoOnCheck: prefs.getBool(_kKakaoOnCheck) ?? d.kakaoOnCheck,
+      kakaoOnMissing: prefs.getBool(_kKakaoOnMissing) ?? d.kakaoOnMissing,
+      slackWebhookUrl: prefs.getString(_kSlackUrl) ?? d.slackWebhookUrl,
+      slackOnCheck: prefs.getBool(_kSlackOnCheck) ?? d.slackOnCheck,
+      slackOnMissing: prefs.getBool(_kSlackOnMissing) ?? d.slackOnMissing,
       configured: prefs.getBool(_kConfigured) ?? d.configured,
     );
   }
@@ -53,7 +61,11 @@ class SettingsService {
     await prefs.setBool(_kConfirm, s.confirmOnArrival);
     await prefs.setBool(_kClockOutAlarm, s.clockOutAlarmEnabled);
     await prefs.setInt(_kOvertimeSnooze, s.overtimeSnoozeMinutes);
-    await prefs.setBool(_kKakao, s.kakaoEnabled);
+    await prefs.setBool(_kKakaoOnCheck, s.kakaoOnCheck);
+    await prefs.setBool(_kKakaoOnMissing, s.kakaoOnMissing);
+    await prefs.setString(_kSlackUrl, s.slackWebhookUrl);
+    await prefs.setBool(_kSlackOnCheck, s.slackOnCheck);
+    await prefs.setBool(_kSlackOnMissing, s.slackOnMissing);
     await prefs.setBool(_kConfigured, true);
   }
 }

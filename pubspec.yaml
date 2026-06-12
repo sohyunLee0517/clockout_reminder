@@ -51,6 +51,7 @@ dependencies:
   fluttertoast: ^9.1.0
   kakao_flutter_sdk_user: ^2.0.0+1
   kakao_flutter_sdk_talk: ^2.0.0+1
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:
