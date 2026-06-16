@@ -80,6 +80,18 @@ class DatabaseService {
     return today.any((r) => r.type == AttendanceType.checkOut);
   }
 
+  /// 기록 수정(시각 등).
+  Future<void> update(AttendanceRecord record) async {
+    if (record.id == null) return;
+    final db = await _database;
+    await db.update(
+      _table,
+      record.toMap(),
+      where: 'id = ?',
+      whereArgs: [record.id],
+    );
+  }
+
   Future<void> delete(int id) async {
     final db = await _database;
     await db.delete(_table, where: 'id = ?', whereArgs: [id]);

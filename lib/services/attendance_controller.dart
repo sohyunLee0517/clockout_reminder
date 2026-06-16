@@ -238,6 +238,27 @@ class AttendanceController {
     return (await _todayCheckIn()) != null;
   }
 
+  /// 기록 시각을 수기로 변경한다. 오늘 출근 기록이면 퇴근시각·리마인더 재계산.
+  Future<void> updateRecordTime(
+      AttendanceRecord record, DateTime newTime) async {
+    if (record.id == null) return;
+    await DatabaseService.instance
+        .update(record.copyWith(timestamp: newTime));
+
+    // 오늘 출근 기록을 바꿨고 아직 퇴근 전이면 퇴근시각 재예약.
+    final isToday = DateTime.now().difference(newTime).inDays == 0 &&
+        newTime.day == DateTime.now().day;
+    if (record.type == AttendanceType.checkIn &&
+        isToday &&
+        !await DatabaseService.instance.hasCheckedOutToday() &&
+        settings.clockOutAlarmEnabled) {
+      final out = TimeRules.computeClockOut(newTime, settings);
+      scheduledClockOut = out;
+      await NotificationService.instance.scheduleClockOutReminders(firstAt: out);
+    }
+    changed.value++;
+  }
+
   // ── 위치 게이트가 적용된 출퇴근 (회사 반경 안에서만 가능) ──
 
   /// 반경 검사 후 출근. 결과에 따라 UI/알림에서 피드백할 수 있다.

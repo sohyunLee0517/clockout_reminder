@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../models/attendance_record.dart';
+import '../services/attendance_controller.dart';
 import '../services/database_service.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -157,11 +158,35 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
                 title: Text('${r.type.label} · ${r.trigger.label}'),
                 subtitle: Text(timeFmt.format(r.timestamp)),
+                trailing: const Icon(Icons.edit, size: 18),
+                onTap: () => _editRecordTime(r),
               ),
             )),
         const Divider(height: 1),
       ],
     );
+  }
+
+  /// 기록 시각 수기 수정.
+  Future<void> _editRecordTime(AttendanceRecord r) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(r.timestamp),
+      helpText: '${r.type.label} 시간 수정',
+    );
+    if (picked == null) return;
+    final d = r.timestamp;
+    final newTime = DateTime(d.year, d.month, d.day, picked.hour, picked.minute);
+    await AttendanceController.instance.updateRecordTime(r, newTime);
+    await _load();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              '${r.type.label} 시간을 ${DateFormat('a h:mm', 'ko').format(newTime)} 로 변경했어요.'),
+        ),
+      );
+    }
   }
 }
 

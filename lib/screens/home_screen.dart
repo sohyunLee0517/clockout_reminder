@@ -583,9 +583,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
               title: Text('${r.type.label} · ${r.trigger.label}'),
               subtitle: Text(df.format(r.timestamp)),
+              trailing: const Icon(Icons.edit, size: 18),
+              onTap: () => _editRecordTime(r),
             )),
+        const SizedBox(height: 4),
+        Text('항목을 탭하면 시간을 수정할 수 있어요.',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.disabledColor)),
       ],
     );
+  }
+
+  /// 기록 시각 수기 수정 (시:분 선택).
+  Future<void> _editRecordTime(AttendanceRecord r) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(r.timestamp),
+      helpText: '${r.type.label} 시간 수정',
+    );
+    if (picked == null) return;
+    final d = r.timestamp;
+    final newTime = DateTime(d.year, d.month, d.day, picked.hour, picked.minute);
+    await _controller.updateRecordTime(r, newTime);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(
+            '${r.type.label} 시간을 ${DateFormat('a h:mm', 'ko').format(newTime)} 로 변경했어요.')),
+      );
+    }
   }
 }
 
