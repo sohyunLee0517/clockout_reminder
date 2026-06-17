@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../models/app_settings.dart';
 import '../models/attendance_record.dart';
+import '../models/leave_record.dart';
 import '../services/attendance_controller.dart';
 import '../services/database_service.dart';
 import '../services/geofence_manager.dart';
@@ -125,7 +126,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _controller.pendingArrival.value = null;
       return;
     }
+    // 오늘이 연차면 "연차 확인" 다이얼로그로 분기.
+    final leave = await _controller.todayLeave();
     if (!mounted) return;
+    if (leave != null) {
+      _controller.pendingArrival.value = null;
+      await _showLeaveArrivalDialog(leave, pending);
+      return;
+    }
     _dialogOpen = true;
     final result = await showDialog<String>(
       context: context,
@@ -158,6 +166,53 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('출근 알림을 무시했어요. (회사 재진입 시 리셋)')),
+        );
+      }
+    }
+  }
+
+  /// 연차일에 회사 도착 → 연차 유지 vs 출근(연차 취소) 확인.
+  Future<void> _showLeaveArrivalDialog(
+      LeaveRecord leave, PendingArrival pending) async {
+    _dialogOpen = true;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('오늘 연차예요'),
+        content: Text(
+            '오늘은 ${leave.type.label}(으)로 등록돼 있어요.\n연차가 맞나요, 아니면 출근하셨나요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'keep'),
+            child: const Text('연차 맞아요'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, 'checkin'),
+            child: const Text('출근할게요'),
+          ),
+        ],
+      ),
+    );
+    _dialogOpen = false;
+    if (result == 'checkin') {
+      final r = await _controller.guardedCheckIn(
+        trigger: AttendanceTrigger.geofenceEnter,
+        latitude: pending.latitude,
+        longitude: pending.longitude,
+      );
+      if (_showBlockedToast(r, isCheckIn: true)) return;
+      await _controller.cancelTodayLeave(); // 출근했으니 연차 취소
+      _showClockOutSnack();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('출근 처리하고 오늘 연차는 취소했어요.')),
+        );
+      }
+    } else if (result == 'keep') {
+      await _controller.ignoreArrival();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('연차로 유지할게요. 푹 쉬세요!')),
         );
       }
     }
@@ -208,6 +263,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           const SnackBar(content: Text('퇴근이 기록되었습니다. 수고하셨어요!')),
         );
       }
+      await _maybeAskEarlyLeave(DateTime.now());
     } else if (result == 'ignore') {
       await _controller.ignoreDeparture();
       if (mounted) {
@@ -286,6 +342,99 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         const SnackBar(content: Text('퇴근이 기록되었습니다. 수고하셨어요!')),
       );
     }
+    await _maybeAskEarlyLeave(DateTime.now());
+  }
+
+  static String _fmtDays(double d) =>
+      d == d.roundToDouble() ? '${d.toInt()}' : d.toStringAsFixed(2);
+
+  /// 예상 퇴근보다 30분 이상 일찍 퇴근 시 → 연차 사용 여부 묻기.
+  Future<void> _maybeAskEarlyLeave(DateTime checkoutTime) async {
+    final checkIn = _checkIn;
+    if (checkIn == null) return;
+    if (await _controller.todayLeave() != null) return; // 이미 연차 등록됨
+    final predicted = TimeRules.computeClockOut(checkIn.timestamp, _settings);
+    if (!checkoutTime.isBefore(predicted.subtract(const Duration(minutes: 30)))) {
+      return; // 충분히 일찍이 아니면 묻지 않음
+    }
+    if (!mounted) return;
+    final df = DateFormat('a h:mm', 'ko');
+    final type = await showDialog<LeaveType>(
+      context: context,
+      builder: (_) => SimpleDialog(
+        title: const Text('일찍 퇴근하셨네요'),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: Text(
+                '예상 퇴근 ${df.format(predicted)} 보다 일찍 퇴근했어요.\n연차를 사용하셨나요?'),
+          ),
+          for (final t in LeaveType.values)
+            ListTile(
+              leading: const Icon(Icons.event_available),
+              title: Text(t.label),
+              onTap: () => Navigator.pop(context, t),
+            ),
+          const Divider(height: 1),
+          ListTile(
+            title: const Text('아니오 (연차 아님)'),
+            onTap: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+    if (type == null) return;
+
+    double amount;
+    double? hours;
+    if (type == LeaveType.hourly) {
+      hours = await _askHours();
+      if (hours == null) return;
+      amount = _controller.dailyWorkHours > 0
+          ? hours / _controller.dailyWorkHours
+          : 0;
+    } else {
+      amount = type.defaultAmount;
+    }
+    final now = DateTime.now();
+    await _controller.addLeave(LeaveRecord(
+      date: DateTime(now.year, now.month, now.day),
+      type: type,
+      amount: amount,
+      hours: hours,
+      memo: '조기 퇴근',
+    ));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${type.label} ${_fmtDays(amount)}일 차감했어요.')),
+      );
+    }
+  }
+
+  /// 시간차 사용 시간 입력.
+  Future<double?> _askHours() async {
+    final ctrl = TextEditingController();
+    return showDialog<double>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('시간차 사용 시간'),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(suffixText: '시간'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('취소')),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(context, double.tryParse(ctrl.text.trim())),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _cancelCheckIn() async {

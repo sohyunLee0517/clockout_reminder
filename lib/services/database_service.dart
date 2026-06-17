@@ -25,7 +25,7 @@ class DatabaseService {
     final path = p.join(dir, _dbName);
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE $_table (
@@ -47,6 +47,11 @@ class DatabaseService {
         if (oldV < 2) {
           await _createLeaveTable(db);
         }
+        if (oldV < 3) {
+          // 시간차 등 가변 차감 지원: amount/hours 컬럼 추가.
+          await db.execute('ALTER TABLE $_leaveTable ADD COLUMN amount REAL');
+          await db.execute('ALTER TABLE $_leaveTable ADD COLUMN hours REAL');
+        }
       },
     );
   }
@@ -57,6 +62,8 @@ class DatabaseService {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date INTEGER NOT NULL,
         type TEXT NOT NULL,
+        amount REAL,
+        hours REAL,
         memo TEXT
       )
     ''');
@@ -139,6 +146,20 @@ class DatabaseService {
   Future<void> deleteLeave(int id) async {
     final db = await _database;
     await db.delete(_leaveTable, where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// 특정 날짜의 연차 기록(없으면 null).
+  Future<LeaveRecord?> getLeaveByDate(DateTime day) async {
+    final start = DateTime(day.year, day.month, day.day);
+    final end = start.add(const Duration(days: 1));
+    final db = await _database;
+    final rows = await db.query(
+      _leaveTable,
+      where: 'date >= ? AND date < ?',
+      whereArgs: [start.millisecondsSinceEpoch, end.millisecondsSinceEpoch],
+      limit: 1,
+    );
+    return rows.isEmpty ? null : LeaveRecord.fromMap(rows.first);
   }
 
   /// 특정 연도의 연차 기록(날짜 오름차순).

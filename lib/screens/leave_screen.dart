@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/leave_record.dart';
 import '../services/attendance_controller.dart';
 import '../services/database_service.dart';
+import '../services/settings_service.dart';
 
 class LeaveScreen extends StatefulWidget {
   const LeaveScreen({super.key});
@@ -16,15 +17,18 @@ class _LeaveScreenState extends State<LeaveScreen> {
   final _controller = AttendanceController.instance;
   late int _year;
   List<LeaveRecord> _leaves = [];
+  double _total = 15;
   bool _loading = true;
 
-  double get _total => _controller.settings.annualLeaveTotal;
   double get _used => _leaves
       .where((l) => !l.isPlanned)
       .fold(0.0, (s, l) => s + l.amount);
   double get _planned =>
       _leaves.where((l) => l.isPlanned).fold(0.0, (s, l) => s + l.amount);
   double get _remaining => _total - _used - _planned;
+
+  /// 1일 소정근로시간(시간차 환산 기준).
+  double get _dailyWorkHours => _controller.settings.workMinutes / 60.0;
 
   @override
   void initState() {
@@ -35,9 +39,11 @@ class _LeaveScreenState extends State<LeaveScreen> {
 
   Future<void> _load() async {
     final leaves = await DatabaseService.instance.getLeavesByYear(_year);
+    final total = await SettingsService.instance.annualLeaveTotalFor(_year);
     if (!mounted) return;
     setState(() {
       _leaves = leaves;
+      _total = total;
       _loading = false;
     });
   }
@@ -230,9 +236,8 @@ class _LeaveScreenState extends State<LeaveScreen> {
       ),
     );
     if (result != null && result >= 0) {
-      await _controller.updateSettings(
-          _controller.settings.copyWith(annualLeaveTotal: result));
-      if (mounted) setState(() {});
+      await SettingsService.instance.setAnnualLeaveTotalFor(_year, result);
+      await _load();
     }
   }
 
@@ -240,6 +245,8 @@ class _LeaveScreenState extends State<LeaveScreen> {
     DateTime date = existing?.date ?? DateTime.now();
     LeaveType type = existing?.type ?? LeaveType.annual;
     final memoCtrl = TextEditingController(text: existing?.memo ?? '');
+    final hoursCtrl = TextEditingController(
+        text: existing?.hours != null ? _fmtDays(existing!.hours!) : '');
 
     final saved = await showModalBottomSheet<bool>(
       context: context,
@@ -247,6 +254,9 @@ class _LeaveScreenState extends State<LeaveScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheet) {
+            String chipLabel(LeaveType t) => t == LeaveType.hourly
+                ? t.label
+                : '${t.label} (${_fmtDays(t.defaultAmount)})';
             return Padding(
               padding: EdgeInsets.only(
                 left: 16,
@@ -281,12 +291,26 @@ class _LeaveScreenState extends State<LeaveScreen> {
                     spacing: 8,
                     children: LeaveType.values.map((t) {
                       return ChoiceChip(
-                        label: Text('${t.label} (${_fmtDays(t.amount)})'),
+                        label: Text(chipLabel(t)),
                         selected: type == t,
                         onSelected: (_) => setSheet(() => type = t),
                       );
                     }).toList(),
                   ),
+                  if (type == LeaveType.hourly) ...[
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: hoursCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: InputDecoration(
+                        labelText: '사용 시간',
+                        suffixText: '시간',
+                        helperText:
+                            '1일 = ${_fmtDays(_dailyWorkHours)}시간 기준으로 차감',
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   TextField(
                     controller: memoCtrl,
@@ -314,10 +338,24 @@ class _LeaveScreenState extends State<LeaveScreen> {
     );
 
     if (saved == true) {
+      double? hours;
+      double amount;
+      if (type == LeaveType.hourly) {
+        hours = double.tryParse(hoursCtrl.text.trim());
+        if (hours == null || hours <= 0) {
+          _snack('사용 시간을 입력해 주세요.');
+          return;
+        }
+        amount = _dailyWorkHours > 0 ? hours / _dailyWorkHours : 0;
+      } else {
+        amount = type.defaultAmount;
+      }
       final record = LeaveRecord(
         id: existing?.id,
         date: date,
         type: type,
+        amount: amount,
+        hours: hours,
         memo: memoCtrl.text.trim().isEmpty ? null : memoCtrl.text.trim(),
       );
       if (existing == null) {
@@ -325,9 +363,13 @@ class _LeaveScreenState extends State<LeaveScreen> {
       } else {
         await DatabaseService.instance.updateLeave(record);
       }
-      // 연도가 바뀌었을 수 있으니 해당 연도로 보정.
-      _year = date.year;
+      _year = date.year; // 연도 보정
       await _load();
     }
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }

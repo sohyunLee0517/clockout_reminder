@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/app_settings.dart';
 import '../models/attendance_record.dart';
+import '../models/leave_record.dart';
 import '../utils/time_rules.dart';
 import 'database_service.dart';
 import 'kakao_service.dart';
@@ -82,6 +83,18 @@ class AttendanceController {
   /// 출근을 누르지 않으면 5분 간격으로 반복 알림("무시" 시 이번 방문 동안 중단).
   Future<void> onArrival({double? latitude, double? longitude}) async {
     if (await isCheckedInToday()) return;
+
+    // 오늘이 연차(예정/사용)면 출근 독촉 대신 "연차 확인" 흐름.
+    final leave = await DatabaseService.instance.getLeaveByDate(DateTime.now());
+    if (leave != null) {
+      await NotificationService.instance.showInstant(
+        title: '오늘 연차로 등록돼 있어요',
+        body: '연차가 맞으면 그대로 두시고, 출근하셨다면 앱에서 출근 처리해 주세요.',
+      );
+      pendingArrival.value =
+          PendingArrival(latitude: latitude, longitude: longitude);
+      return; // 출근 리마인더/미입력 스케줄 안 함
+    }
 
     await _recordArrival(); // 도착시각 기록(출근 미입력 판단 기준)
 
@@ -236,6 +249,28 @@ class AttendanceController {
 
   Future<bool> isCheckedInToday() async {
     return (await _todayCheckIn()) != null;
+  }
+
+  /// 1일 소정근로시간(시간차 환산 기준).
+  double get dailyWorkHours => settings.workMinutes / 60.0;
+
+  /// 오늘 연차 기록(없으면 null).
+  Future<LeaveRecord?> todayLeave() =>
+      DatabaseService.instance.getLeaveByDate(DateTime.now());
+
+  /// 연차 추가.
+  Future<void> addLeave(LeaveRecord r) async {
+    await DatabaseService.instance.insertLeave(r);
+    changed.value++;
+  }
+
+  /// 오늘 연차 취소(삭제).
+  Future<void> cancelTodayLeave() async {
+    final leave = await todayLeave();
+    if (leave?.id != null) {
+      await DatabaseService.instance.deleteLeave(leave!.id!);
+      changed.value++;
+    }
   }
 
   /// 기록 시각을 수기로 변경한다. 오늘 출근 기록이면 퇴근시각·리마인더 재계산.

@@ -51,6 +51,20 @@ class SettingsService {
     );
   }
 
+  /// 연도별 총 연차 일수 (없으면 기본값 fallback).
+  Future<double> annualLeaveTotalFor(int year) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble('annual_leave_$year') ??
+        prefs.getDouble(_kAnnualLeave) ??
+        AppSettings.defaults().annualLeaveTotal;
+  }
+
+  Future<void> setAnnualLeaveTotalFor(int year, double value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('annual_leave_$year', value);
+    await prefs.setDouble(_kAnnualLeave, value); // 다음 해 기본값
+  }
+
   Future<void> save(AppSettings s) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_kLat, s.officeLatitude);
