@@ -17,7 +17,7 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <application
-        android:label="퇴근 알림"
+        android:label="정직한근태씨"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

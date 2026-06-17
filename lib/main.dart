@@ -93,7 +93,7 @@ class ClockOutApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '퇴근 알림',
+      title: '정직한근태씨',
       debugShowCheckedModeBanner: false,
       locale: const Locale('ko'),
       localizationsDelegates: const [

@@ -480,7 +480,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('퇴근 알림'),
+        title: const Text('정직한근태씨'),
         actions: [
           IconButton(
             icon: const Icon(Icons.history),

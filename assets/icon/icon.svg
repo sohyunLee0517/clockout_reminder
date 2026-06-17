@@ -4,18 +4,48 @@
       <stop offset="0" stop-color="#4A82C4"/>
       <stop offset="1" stop-color="#2C5680"/>
     </linearGradient>
+    <clipPath id="head"><circle cx="512" cy="486" r="300"/></clipPath>
   </defs>
+
   <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
-  <!-- clock face -->
-  <circle cx="512" cy="472" r="300" fill="#FFFFFF"/>
-  <!-- hands -->
-  <g stroke="#1A2B45" stroke-linecap="round" fill="none">
-    <line x1="512" y1="472" x2="512" y2="290" stroke-width="36"/>
-    <line x1="512" y1="472" x2="648" y2="512" stroke-width="36"/>
+
+  <!-- 어깨/셔츠 -->
+  <path d="M232 1024 C232 858 360 792 512 792 C664 792 792 858 792 1024 Z" fill="#F2F5FA"/>
+  <!-- 넥타이 -->
+  <path d="M512 792 l-30 34 30 150 30 -150 Z" fill="#2C5680"/>
+  <path d="M488 792 h48 l-24 30 Z" fill="#3A6EA5"/>
+
+  <!-- 머리 -->
+  <g clip-path="url(#head)">
+    <circle cx="512" cy="486" r="300" fill="#FCE0BE"/>
+    <!-- 머리카락 -->
+    <ellipse cx="512" cy="300" rx="320" ry="210" fill="#33323F"/>
   </g>
-  <circle cx="512" cy="472" r="34" fill="#1A2B45"/>
-  <!-- check badge -->
-  <circle cx="712" cy="700" r="172" fill="#34C759" stroke="#FFFFFF" stroke-width="30"/>
-  <path d="M636 702 L692 760 L792 640" fill="none" stroke="#FFFFFF"
-        stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- 눈썹 (정직·성실한 인상) -->
+  <path d="M398 452 q40 -22 86 -4" stroke="#33323F" stroke-width="18"
+        stroke-linecap="round" fill="none"/>
+  <path d="M540 448 q46 -18 86 4" stroke="#33323F" stroke-width="18"
+        stroke-linecap="round" fill="none"/>
+
+  <!-- 눈 -->
+  <circle cx="430" cy="516" r="30" fill="#33323F"/>
+  <circle cx="594" cy="516" r="30" fill="#33323F"/>
+  <circle cx="440" cy="506" r="9" fill="#FFFFFF"/>
+  <circle cx="604" cy="506" r="9" fill="#FFFFFF"/>
+
+  <!-- 볼 -->
+  <circle cx="392" cy="582" r="34" fill="#FF9E9E" opacity="0.55"/>
+  <circle cx="632" cy="582" r="34" fill="#FF9E9E" opacity="0.55"/>
+
+  <!-- 미소 -->
+  <path d="M452 600 q60 64 120 0" stroke="#33323F" stroke-width="18"
+        stroke-linecap="round" fill="none"/>
+
+  <!-- 시계 배지 (근태 테마) -->
+  <circle cx="724" cy="356" r="86" fill="#34C759" stroke="#FFFFFF" stroke-width="14"/>
+  <g stroke="#FFFFFF" stroke-width="14" stroke-linecap="round">
+    <line x1="724" y1="356" x2="724" y2="312"/>
+    <line x1="724" y1="356" x2="758" y2="372"/>
+  </g>
 </svg>

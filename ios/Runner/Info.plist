@@ -23,7 +23,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>퇴근 알림</string>
+	<string>정직한근태씨</string>
 	<!-- 위치 권한 설명 -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>회사 반경 진입/이탈을 감지해 퇴근 알림을 보내기 위해 위치를 사용합니다.</string>
