@@ -22,6 +22,7 @@ class SettingsService {
   static const _kSlackUrl = 'slack_webhook_url';
   static const _kSlackOnCheck = 'slack_on_check';
   static const _kSlackOnMissing = 'slack_on_missing';
+  static const _kAnnualLeave = 'annual_leave_total';
   static const _kConfigured = 'configured';
 
   Future<AppSettings> load() async {
@@ -45,6 +46,7 @@ class SettingsService {
       slackWebhookUrl: prefs.getString(_kSlackUrl) ?? d.slackWebhookUrl,
       slackOnCheck: prefs.getBool(_kSlackOnCheck) ?? d.slackOnCheck,
       slackOnMissing: prefs.getBool(_kSlackOnMissing) ?? d.slackOnMissing,
+      annualLeaveTotal: prefs.getDouble(_kAnnualLeave) ?? d.annualLeaveTotal,
       configured: prefs.getBool(_kConfigured) ?? d.configured,
     );
   }
@@ -66,6 +68,7 @@ class SettingsService {
     await prefs.setString(_kSlackUrl, s.slackWebhookUrl);
     await prefs.setBool(_kSlackOnCheck, s.slackOnCheck);
     await prefs.setBool(_kSlackOnMissing, s.slackOnMissing);
+    await prefs.setDouble(_kAnnualLeave, s.annualLeaveTotal);
     await prefs.setBool(_kConfigured, true);
   }
 }

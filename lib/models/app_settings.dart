@@ -48,6 +48,9 @@ class AppSettings {
   /// 출퇴근 미입력 시 슬랙 전송.
   final bool slackOnMissing;
 
+  /// 올해 총 연차 일수 (잔여 연차 계산 기준).
+  final double annualLeaveTotal;
+
   /// 설정이 한 번이라도 저장되었는지 (초기 온보딩 판단용)
   final bool configured;
 
@@ -67,6 +70,7 @@ class AppSettings {
     required this.slackWebhookUrl,
     required this.slackOnCheck,
     required this.slackOnMissing,
+    required this.annualLeaveTotal,
     required this.configured,
   });
 
@@ -88,6 +92,7 @@ class AppSettings {
       slackWebhookUrl: '',
       slackOnCheck: false,
       slackOnMissing: false,
+      annualLeaveTotal: 15,
       configured: false,
     );
   }
@@ -111,6 +116,7 @@ class AppSettings {
     String? slackWebhookUrl,
     bool? slackOnCheck,
     bool? slackOnMissing,
+    double? annualLeaveTotal,
     bool? configured,
   }) {
     return AppSettings(
@@ -130,6 +136,7 @@ class AppSettings {
       slackWebhookUrl: slackWebhookUrl ?? this.slackWebhookUrl,
       slackOnCheck: slackOnCheck ?? this.slackOnCheck,
       slackOnMissing: slackOnMissing ?? this.slackOnMissing,
+      annualLeaveTotal: annualLeaveTotal ?? this.annualLeaveTotal,
       configured: configured ?? this.configured,
     );
   }

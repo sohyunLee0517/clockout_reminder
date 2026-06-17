@@ -2,14 +2,16 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 import '../models/attendance_record.dart';
+import '../models/leave_record.dart';
 
-/// 근태 기록을 sqflite 로컬 DB에 저장/조회한다.
+/// 근태/연차 기록을 sqflite 로컬 DB에 저장/조회한다.
 class DatabaseService {
   DatabaseService._();
   static final DatabaseService instance = DatabaseService._();
 
   static const _dbName = 'attendance.db';
   static const _table = 'records';
+  static const _leaveTable = 'leaves';
   Database? _db;
 
   Future<Database> get _database async {
@@ -23,7 +25,7 @@ class DatabaseService {
     final path = p.join(dir, _dbName);
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE $_table (
@@ -39,8 +41,25 @@ class DatabaseService {
         await db.execute(
           'CREATE INDEX idx_timestamp ON $_table (timestamp DESC)',
         );
+        await _createLeaveTable(db);
+      },
+      onUpgrade: (db, oldV, newV) async {
+        if (oldV < 2) {
+          await _createLeaveTable(db);
+        }
       },
     );
+  }
+
+  Future<void> _createLeaveTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE $_leaveTable (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        memo TEXT
+      )
+    ''');
   }
 
   Future<int> insert(AttendanceRecord record) async {
@@ -100,5 +119,39 @@ class DatabaseService {
   Future<void> clearAll() async {
     final db = await _database;
     await db.delete(_table);
+  }
+
+  // ── 연차(leaves) ──
+
+  Future<int> insertLeave(LeaveRecord r) async {
+    final db = await _database;
+    final map = r.toMap()..remove('id');
+    return db.insert(_leaveTable, map);
+  }
+
+  Future<void> updateLeave(LeaveRecord r) async {
+    if (r.id == null) return;
+    final db = await _database;
+    await db.update(_leaveTable, r.toMap(),
+        where: 'id = ?', whereArgs: [r.id]);
+  }
+
+  Future<void> deleteLeave(int id) async {
+    final db = await _database;
+    await db.delete(_leaveTable, where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// 특정 연도의 연차 기록(날짜 오름차순).
+  Future<List<LeaveRecord>> getLeavesByYear(int year) async {
+    final start = DateTime(year).millisecondsSinceEpoch;
+    final end = DateTime(year + 1).millisecondsSinceEpoch;
+    final db = await _database;
+    final rows = await db.query(
+      _leaveTable,
+      where: 'date >= ? AND date < ?',
+      whereArgs: [start, end],
+      orderBy: 'date ASC',
+    );
+    return rows.map(LeaveRecord.fromMap).toList();
   }
 }

@@ -7,6 +7,7 @@ import 'config/kakao_config.dart';
 import 'models/app_settings.dart';
 import 'models/attendance_record.dart';
 import 'screens/home_screen.dart';
+import 'screens/leave_screen.dart';
 import 'services/attendance_controller.dart';
 import 'services/geofence_manager.dart';
 import 'services/notification_service.dart';
@@ -115,7 +116,47 @@ class ClockOutApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: HomeScreen(initialSettings: initialSettings),
+      home: MainShell(initialSettings: initialSettings),
+    );
+  }
+}
+
+/// 하단 탭(홈 / 연차) 셸.
+class MainShell extends StatefulWidget {
+  final AppSettings initialSettings;
+  const MainShell({super.key, required this.initialSettings});
+
+  @override
+  State<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<MainShell> {
+  int _index = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(
+        index: _index,
+        children: [
+          HomeScreen(initialSettings: widget.initialSettings),
+          const LeaveScreen(),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _index,
+        onDestinationSelected: (i) => setState(() => _index = i),
+        destinations: const [
+          NavigationDestination(
+              icon: Icon(Icons.access_time_outlined),
+              selectedIcon: Icon(Icons.access_time_filled),
+              label: '출퇴근'),
+          NavigationDestination(
+              icon: Icon(Icons.event_outlined),
+              selectedIcon: Icon(Icons.event),
+              label: '연차'),
+        ],
+      ),
     );
   }
 }
