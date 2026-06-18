@@ -45,10 +45,10 @@ class DatabaseService {
       },
       onUpgrade: (db, oldV, newV) async {
         if (oldV < 2) {
+          // leaves 테이블이 없던 버전 → 최신 스키마로 새로 생성(amount/hours 포함).
           await _createLeaveTable(db);
-        }
-        if (oldV < 3) {
-          // 시간차 등 가변 차감 지원: amount/hours 컬럼 추가.
+        } else if (oldV == 2) {
+          // v2 에서 만든 테이블엔 amount/hours 가 없으므로 추가.
           await db.execute('ALTER TABLE $_leaveTable ADD COLUMN amount REAL');
           await db.execute('ALTER TABLE $_leaveTable ADD COLUMN hours REAL');
         }

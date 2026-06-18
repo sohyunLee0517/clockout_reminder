@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4A82C4"/>
+      <stop offset="1" stop-color="#2C5680"/>
+    </linearGradient>
+    <clipPath id="head"><circle cx="512" cy="486" r="300"/></clipPath>
+  </defs>
+
+  <rect width="1024" height="500" fill="url(#bg)"/>
+  <!-- 장식 원 -->
+  <circle cx="930" cy="60" r="220" fill="#FFFFFF" opacity="0.06"/>
+  <circle cx="120" cy="470" r="160" fill="#FFFFFF" opacity="0.05"/>
+
+  <!-- 텍스트 -->
+  <text x="64" y="232" font-family="Apple SD Gothic Neo, AppleGothic, NanumGothic, sans-serif"
+        font-size="92" font-weight="800" fill="#FFFFFF">정직한근태씨</text>
+  <text x="66" y="300" font-family="Apple SD Gothic Neo, AppleGothic, NanumGothic, sans-serif"
+        font-size="36" fill="#FFFFFF" opacity="0.92">출퇴근부터 연차까지, 깔끔한 근태 관리</text>
+  <text x="66" y="356" font-family="Apple SD Gothic Neo, AppleGothic, NanumGothic, sans-serif"
+        font-size="27" fill="#CFE0F7">위치 자동 감지 · 퇴근 리마인더 · 연차 잔여</text>
+
+  <!-- 캐릭터 (오른쪽) -->
+  <g transform="translate(838,260) scale(0.6) translate(-512,-486)">
+    <path d="M232 1024 C232 858 360 792 512 792 C664 792 792 858 792 1024 Z" fill="#F2F5FA"/>
+    <path d="M512 792 l-30 34 30 150 30 -150 Z" fill="#2C5680"/>
+    <path d="M488 792 h48 l-24 30 Z" fill="#3A6EA5"/>
+    <g clip-path="url(#head)">
+      <circle cx="512" cy="486" r="300" fill="#FCE0BE"/>
+      <ellipse cx="512" cy="300" rx="320" ry="210" fill="#33323F"/>
+    </g>
+    <path d="M398 452 q40 -22 86 -4" stroke="#33323F" stroke-width="18" stroke-linecap="round" fill="none"/>
+    <path d="M540 448 q46 -18 86 4" stroke="#33323F" stroke-width="18" stroke-linecap="round" fill="none"/>
+    <circle cx="430" cy="516" r="30" fill="#33323F"/>
+    <circle cx="594" cy="516" r="30" fill="#33323F"/>
+    <circle cx="440" cy="506" r="9" fill="#FFFFFF"/>
+    <circle cx="604" cy="506" r="9" fill="#FFFFFF"/>
+    <circle cx="392" cy="582" r="34" fill="#FF9E9E" opacity="0.55"/>
+    <circle cx="632" cy="582" r="34" fill="#FF9E9E" opacity="0.55"/>
+    <path d="M452 600 q60 64 120 0" stroke="#33323F" stroke-width="18" stroke-linecap="round" fill="none"/>
+    <circle cx="724" cy="356" r="86" fill="#34C759" stroke="#FFFFFF" stroke-width="14"/>
+    <g stroke="#FFFFFF" stroke-width="14" stroke-linecap="round">
+      <line x1="724" y1="356" x2="724" y2="312"/>
+      <line x1="724" y1="356" x2="758" y2="372"/>
+    </g>
+  </g>
+</svg>
